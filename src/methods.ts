@@ -28,7 +28,11 @@ const settings = {
       description: "How CSV files are read.",
       properties: {
         header: { type: "boolean", description: "The first row names the columns." },
-        delimiter: { type: "string", description: "The field separator." },
+        delimiter: {
+          type: "string",
+          description: "The field separator.",
+          examples: [",", ";", "|"],
+        },
       },
     },
   },
