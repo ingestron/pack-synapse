@@ -18,3 +18,9 @@ Synapse syntax used by this pack, accessed 2026-11-01:
   views over `OPENROWSET` with a typed `WITH` clause; `CREATE OR ALTER VIEW`.
 - [Access files on storage in serverless SQL pool](https://learn.microsoft.com/en-us/azure/synapse-analytics/sql/develop-storage-files-overview):
   external data sources and the paths relative to them.
+- [Control storage account access for serverless SQL pool](https://learn.microsoft.com/en-us/azure/synapse-analytics/sql/develop-storage-files-storage-access-control):
+  a database scoped credential `WITH IDENTITY = 'Managed Identity'`; querying
+  through a data source with a credential needs REFERENCES on the credential and
+  ADMINISTER DATABASE BULK OPERATIONS.
+- [Build a logical data warehouse with serverless SQL pool](https://learn.microsoft.com/en-us/azure/synapse-analytics/sql/tutorial-logical-data-warehouse):
+  granting REFERENCES on the credential when users read through views.
