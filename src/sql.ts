@@ -14,22 +14,49 @@ export function quote(name: string): string {
   return `[${name.replaceAll("]", "]]")}]`;
 }
 
+/** How a view's columns are named and typed. */
+export interface ColumnOptions {
+  /** False when the files hold columns under their physicalName (the ingest did not rename). */
+  renamed?: boolean;
+  /** True when each column's resolved type is Synapse's (Synapse provides the defaults). */
+  resolvedTypes?: boolean;
+}
+
 /**
- * The column list for OPENROWSET's WITH clause: each column typed from its
- * logicalType, or by the type written for it when it has none.
+ * The column list for OPENROWSET's WITH clause: each column under its name in
+ * the files, typed from its logicalType (or by the type written for it).
  * @example columnList([{ name: "id", logicalType: "integer", nullable: false }]) // "  [id] BIGINT"
  */
-export function columnList(columns: Column[]): string {
+export function columnList(columns: Column[], options: ColumnOptions = {}): string {
   return columns
-    .map((column) => {
-      const type = (column.logicalType && synapseTypes[column.logicalType]) ?? column.type;
-      return `  ${quote(column.name)} ${type ?? fallbackType}`;
-    })
+    .map((column) => `  ${quote(fileName(column, options))} ${typeOf(column, options)}`)
     .join(",\n");
 }
 
+/** `*`, or each column under its contract name when a file name differs. */
+function selectList(columns: Column[], options: ColumnOptions): string {
+  if (columns.every((column) => fileName(column, options) === column.name)) return "*";
+  return columns
+    .map((column) => {
+      const file = fileName(column, options);
+      return file === column.name ? quote(column.name) : `${quote(file)} AS ${quote(column.name)}`;
+    })
+    .join(", ");
+}
+
+function fileName(column: Column, { renamed = true }: ColumnOptions): string {
+  return !renamed && column.physicalName ? column.physicalName : column.name;
+}
+
+/** The resolved type when it is Synapse's; otherwise from the logicalType. */
+function typeOf(column: Column, { resolvedTypes = false }: ColumnOptions): string {
+  const mapped = column.logicalType ? synapseTypes[column.logicalType] : undefined;
+  const type = resolvedTypes ? (column.type ?? mapped) : (mapped ?? column.type);
+  return type ?? fallbackType;
+}
+
 /** What a view over files reads. */
-export interface FilesInput {
+export interface FilesInput extends ColumnOptions {
   /** The file or pattern, relative to the data source. */
   path: string;
   dataSource: string;
@@ -49,11 +76,11 @@ export function filesQuery(input: FilesInput): string {
     ...formatOptions(input),
   ];
   return [
-    "SELECT *",
+    `SELECT ${selectList(input.columns, input)}`,
     "FROM OPENROWSET(",
     options.join(",\n"),
     ") WITH (",
-    columnList(input.columns),
+    columnList(input.columns, input),
     ") AS [rows]",
   ].join("\n");
 }

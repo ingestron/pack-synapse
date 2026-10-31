@@ -13,9 +13,10 @@ Security fixes go into the latest `1.x` release.
 
 ## Design
 
-The pack turns a resolved model into Azure Data Factory resource files. It
-makes no network calls, runs no code from the definitions, and writes
-secrets only as Key Vault references.
+The pack turns a resolved model into a T-SQL script of views. It makes no
+network calls, runs no code from the definitions, and writes no secrets: views
+read storage through an external data source whose credential the platform
+team creates.
 
 Dependencies are pinned exactly and updated one reviewed change at a time;
 `pnpm validate` checks their licences.
