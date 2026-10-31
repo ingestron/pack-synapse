@@ -36,13 +36,27 @@ Parquet uses `FORMAT = 'PARQUET'`; CSV uses `FORMAT = 'CSV'`, `PARSER_VERSION =
 '2.0'`, `HEADER_ROW = TRUE` when `header`, and `FIELDTERMINATOR`. A transform's
 view is `SELECT <contract columns> FROM (<code>) AS [source]`.
 
-Columns are typed from each column's `logicalType`: `string` as
+When the ingest did not rename columns (`renamed` false), a column with a
+`physicalName` is read under that name and selected `AS` its contract name.
+
+When the standard lists `synapse@` first, a column's resolved type is used
+(the contract's `physicalType`, else the pack's type); otherwise columns are
+typed from each column's `logicalType`: `string` as
 `VARCHAR(8000) COLLATE Latin1_General_100_BIN2_UTF8`, `integer` `BIGINT`,
 `number` `FLOAT`, `boolean` `BIT`, `date` `DATE`, `timestamp` `DATETIME2(7)`; a
 column without a `logicalType` uses its resolved type. Names are in brackets,
 with `]` doubled; text literals double `'`.
 
 ## Checks
+
+- A method check problem for `synapse-view` over files when the ingest step
+  records no `output`, and when it keeps a transform whose method is not
+  `synapse-sql`.
+- A method check problem for `synapse-sql` code that starts with `WITH`, or
+  names `{{ tables.<x> }}` for an `x` not in `inputs`. A trailing `;` is
+  dropped from the view.
+- A pack check problem when a `synapse-sql` transform's store is not
+  `synapse-view`.
 
 - A method check problem when the files are not under `data_source_location`,
   or are in a format other than Parquet or CSV.

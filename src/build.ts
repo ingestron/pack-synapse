@@ -2,7 +2,7 @@
 // Synapse method keeps or serves, in the model's order (inputs first).
 import type { ResolvedModel, ResolvedTable, Step } from "@ingestron/definitions";
 import { relativePath, sourceStep } from "./locations.js";
-import { filesQuery, quote, viewStatement } from "./sql.js";
+import { filesQuery, quote, viewStatement, type ColumnOptions } from "./sql.js";
 
 /**
  * The pack's files: `views.sql`, or nothing when no table uses a Synapse method.
@@ -25,19 +25,27 @@ export function hasView(table: ResolvedTable): boolean {
 
 function viewOf(model: ResolvedModel, table: ResolvedTable): string[] {
   const name = { schema: table.fullName.schema, table: table.fullName.table };
+  // Resolved types are Synapse's only when Synapse provides the defaults.
+  const resolvedTypes = model.standard.packs[0]?.startsWith("synapse@") ?? false;
   if (table.serve?.method === "synapse-serve")
-    return [viewStatement(name, filesView(table, table.serve))];
+    return [viewStatement(name, filesView(table, table.serve, { resolvedTypes }))];
   if (table.store?.method !== "synapse-view") return [];
-  const query = table.transform ? transformView(model, table) : filesView(table, table.store);
+  const renamed = table.ingest?.renamed ?? true;
+  const query = table.transform
+    ? transformView(model, table)
+    : filesView(table, table.store, { renamed, resolvedTypes });
   return [viewStatement(name, query)];
 }
 
 /** A view over the files the table's source step records, read through the data source. */
-function filesView(table: ResolvedTable, step: Step): string {
+function filesView(table: ResolvedTable, step: Step, options: ColumnOptions): string {
   const output = sourceStep(table)!.output!;
   const relative = relativePath(output, step.settings);
+  // The method's check refuses this before a build; never write a wrong path.
+  if ("problem" in relative) throw new Error(relative.problem);
   return filesQuery({
-    path: "path" in relative ? relative.path : output.location,
+    ...options,
+    path: relative.path,
     dataSource: String(step.settings.data_source),
     format: output.format === "csv" ? "csv" : "parquet",
     columns: table.contract.columns,
@@ -47,7 +55,7 @@ function filesView(table: ResolvedTable, step: Step): string {
 
 /** The transform's SQL, its inputs named by their views, selecting the contract's columns. */
 function transformView(model: ResolvedModel, table: ResolvedTable): string {
-  const code = table.transform!.code.replace(
+  const code = withoutSemicolon(table.transform!.code).replace(
     /\{\{\s*tables\.([A-Za-z0-9_-]+)\s*\}\}/g,
     (written, input: string) => {
       const found = model.tables.find((item) => item.name === input);
@@ -56,4 +64,9 @@ function transformView(model: ResolvedModel, table: ResolvedTable): string {
   );
   const columns = table.contract.columns.map((column) => quote(column.name)).join(", ");
   return [`SELECT ${columns}`, "FROM (", code, ") AS [source]"].join("\n");
+}
+
+/** A view's subquery cannot end with `;`. */
+function withoutSemicolon(code: string): string {
+  return code.trim().replace(/;\s*$/, "");
 }

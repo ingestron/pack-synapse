@@ -20,12 +20,17 @@ change only when contracts, transforms or naming change.
 
 ## Views only
 
-With a pack that lands files, such as ADF, Synapse can be the whole store:
+With a pack that lands files, such as ADF, Synapse can be the whole store.
+List it first: the first pack provides the defaults, such as the database name
+(`{{ project }}_{{ environment }}`) and the column types:
 
 ```yaml
-packs: [adf@1, synapse@1]
+packs: [synapse@1, adf@1]
 store: { default: synapse-view }
 ```
+
+To serve tables another pack stores, list Synapse after that pack and choose
+`synapse-serve` for the tables to serve.
 
 Name the external data source in `platform.yaml`, for each method you use:
 
@@ -43,6 +48,21 @@ the current data only, land one file per table (`snapshot`).
 `ingestron request` lists what the platform team creates: the serverless
 database, the external data source with its managed-identity credential, the
 workspace's read access to the storage, and report users' permissions.
+
+## Columns and transforms
+
+Each view's columns come from the contract, typed from their `logicalType`.
+When Synapse is listed first, a column's `physicalType` is used as written, so
+`DECIMAL(18,2)` keeps money exact; otherwise the type follows the
+`logicalType`. Strings use the UTF-8 binary collation Microsoft recommends for
+Parquet, so comparisons are case-sensitive. Parquet and CSV files with a header
+are read by column name: a column the landing pack did not rename is read under
+its `physicalName`.
+
+A transform's SQL is one T-SQL query over its inputs' views, written
+`{{ tables.<input> }}`. It sits inside the view, so it cannot start with `WITH`
+or end with `ORDER BY` (a trailing `;` is dropped), and it names only tables
+listed in `inputs`.
 
 ## Views or tables
 

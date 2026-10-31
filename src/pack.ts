@@ -9,7 +9,7 @@ import { synapseTypes } from "./types.js";
 
 /**
  * The Synapse serverless SQL pack.
- * @example loadDefinitions("definitions", { packs: [adf, synapse] })
+ * @example loadDefinitions("definitions", { packs: [synapse, adf] })
  */
 export const synapse: Pack = {
   id: "synapse",
@@ -38,16 +38,21 @@ export const synapse: Pack = {
   contract,
 };
 
-/** A T-SQL transform reads other tables' views, so each input needs one. */
+/** A T-SQL transform is kept by synapse-view and reads other tables' views. */
 function transformInputs(model: ResolvedModel): string[] {
   return model.tables
     .filter((table) => table.transform?.method === "synapse-sql")
-    .flatMap((table) =>
-      Object.keys(table.transform!.inputs)
+    .flatMap((table) => [
+      ...(table.store?.method === "synapse-view"
+        ? []
+        : [
+            `transform "${table.name}" is T-SQL (synapse-sql), so only synapse-view can keep it, not "${table.store?.method}"`,
+          ]),
+      ...Object.keys(table.transform!.inputs)
         .filter((input) => !model.tables.some((item) => item.name === input && hasView(item)))
         .map(
           (input) =>
             `transform "${table.name}" reads "${input}", which has no Synapse view; store it with synapse-view or serve it with synapse-serve`,
         ),
-    );
+    ]);
 }
