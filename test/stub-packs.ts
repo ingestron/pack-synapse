@@ -22,14 +22,17 @@ export const landing: Pack = {
         type: "object",
         properties: { location: { type: "string" }, format: { type: "string" } },
       },
-      output: (table) => ({
-        location: String(
-          table.ingest!.settings.location ??
-            `abfss://landing@acct.dfs.core.windows.net/erp/${object(table)}/${object(table)}.parquet`,
-        ),
-        format: (table.ingest!.settings.format as "parquet" | "csv" | "json") ?? "parquet",
-        loads: "replace",
-      }),
+      output: (table) =>
+        table.ingest!.settings.location === "none"
+          ? undefined
+          : {
+              location: String(
+                table.ingest!.settings.location ??
+                  `abfss://landing@acct.dfs.core.windows.net/erp/${object(table)}/${object(table)}.parquet`,
+              ),
+              format: (table.ingest!.settings.format as "parquet" | "csv" | "json") ?? "parquet",
+              loads: "replace",
+            },
     },
   },
   build: () => ({}),
@@ -53,6 +56,20 @@ export const tables: Pack = {
         format: "parquet",
         loads: "add",
       }),
+    },
+    spark: {
+      action: "transform",
+      description: "Another engine's SQL.",
+      accepts: ["table"],
+      produces: "query",
+      settings: { type: "object" },
+    },
+    "keep-query": {
+      action: "store",
+      description: "Keeps another engine's query as a table.",
+      accepts: ["query"],
+      produces: "table",
+      settings: { type: "object" },
     },
     opaque: {
       action: "store",
