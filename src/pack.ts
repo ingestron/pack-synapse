@@ -2,6 +2,8 @@
 // packs land or store, and transforms as views.
 import type { Pack, ResolvedModel } from "@ingestron/definitions";
 import { build, hasView } from "./build.js";
+import { contract } from "./contract.js";
+import { request } from "./request.js";
 import { synapseServe, synapseSql, synapseView } from "./methods.js";
 import { synapseTypes } from "./types.js";
 
@@ -32,6 +34,8 @@ export const synapse: Pack = {
   },
   build,
   check: transformInputs,
+  request,
+  contract,
 };
 
 /** A T-SQL transform reads other tables' views, so each input needs one. */
