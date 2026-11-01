@@ -13,11 +13,10 @@ export function sourceStep(table: ResolvedTable): Step | undefined {
  */
 export function canonical(location: string): string {
   const abfss = /^abfss:\/\/([^@/]+)@([^/]+)(\/.*)?$/i.exec(location);
-  if (abfss)
-    return `https://${abfss[2]!.toLowerCase()}/${abfss[1]}${abfss[3] ?? ""}`.replace(/\/+$/, "");
+  if (abfss) return `https://${abfss[2]!.toLowerCase()}/${abfss[1]}${abfss[3] ?? ""}`;
   const https = /^https:\/\/([^/]+)(\/.*)?$/i.exec(location);
-  if (https) return `https://${https[1]!.toLowerCase()}${https[2] ?? ""}`.replace(/\/+$/, "");
-  return location.replace(/\/+$/, "");
+  if (https) return `https://${https[1]!.toLowerCase()}${https[2] ?? ""}`;
+  return location;
 }
 
 /** The output's path relative to the data source, or a problem. */
@@ -25,7 +24,8 @@ export function relativePath(
   output: StepOutput,
   settings: Record<string, unknown>,
 ): { path: string } | { problem: string } {
-  const root = canonical(String(settings.data_source_location ?? ""));
+  // A folder keeps its trailing slash: without it, a path names a file.
+  const root = canonical(String(settings.data_source_location ?? "")).replace(/\/+$/, "");
   const location = canonical(output.location);
   if (!location.startsWith(`${root}/`))
     return {

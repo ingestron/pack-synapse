@@ -66,7 +66,7 @@ function dataSourceLocations(model: ResolvedModel): string[] {
     if (!step || !/^synapse-(view|serve)$/.test(step.method)) continue;
     const name = String(step.settings.data_source);
     const locations = seen.get(name) ?? new Set<string>();
-    locations.add(canonical(String(step.settings.data_source_location)));
+    locations.add(canonical(String(step.settings.data_source_location)).replace(/\/+$/, ""));
     seen.set(name, locations);
   }
   return [...seen]

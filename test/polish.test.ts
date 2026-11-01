@@ -147,3 +147,57 @@ describe("types and references", () => {
     );
   });
 });
+
+describe("review fixes", () => {
+  const transform = (id: string, layer: string, input: string) =>
+    `apiVersion: ingestron.io/v1\nkind: Transform\nid: ${id}\nlayer: ${layer}\ninputs: [${input}]\ncode: SELECT id, total FROM {{ tables.${input} }}\ncontract: orders\n`;
+
+  it("creates every view after the views it reads, across databases", () => {
+    const standard = base["standard.yaml"]!.replace(
+      "store: { default: synapse-view }",
+      'store: { default: synapse-view }\nnaming: { catalog: "erp_{{ layer }}" }',
+    );
+    const sql = views({
+      "standard.yaml": standard,
+      "g1.yaml": transform("g1", "gold", "orders"),
+      "s2.yaml": transform("s2", "silver", "orders"),
+      "g2.yaml": transform("g2", "gold", "s2"),
+    });
+    expect(sql.indexOf("VIEW [silver].[s2]")).toBeLessThan(sql.indexOf("VIEW [gold].[g2]"));
+    expect(sql).not.toContain("serverless database that holds the views");
+  });
+
+  it("reads CSV with ADF's header and sep options", () => {
+    const flow = flowWith(
+      '{ format: csv, location: "abfss://landing@acct.dfs.core.windows.net/erp/orders/orders.csv", options: { header: "false", sep: ";" } }',
+    );
+    const sql = views({ "flow.yaml": flow });
+    expect(sql).toContain("FIELDTERMINATOR = ';'");
+    expect(sql).not.toContain("HEADER_ROW = TRUE");
+  });
+
+  it("asks once for a data source written in two forms", () => {
+    const flow = base["flow.yaml"]!.replace(
+      "source: erp\n",
+      "source: erp\nstore: { with: { data_source_location: https://acct.dfs.core.windows.net/landing } }\n",
+    );
+    const again =
+      "apiVersion: ingestron.io/v1\nkind: Flow\nid: again\nsource: erp\ntables:\n  again: { object: again, contract: orders }\n";
+    const lines = synapse.request!(
+      generate({ "flow.yaml": flow, "again.yaml": again }).model as ResolvedModel,
+    )
+      .flatMap((section) => section.lines)
+      .filter((line) => line.includes("external data source"));
+    expect(lines).toHaveLength(1);
+  });
+
+  it("keeps a folder output's trailing slash", () => {
+    const flow = flowWith('{ location: "abfss://landing@acct.dfs.core.windows.net/erp/orders/" }');
+    expect(views({ "flow.yaml": flow })).toContain("BULK 'erp/orders/'");
+  });
+
+  it("reads object and array columns as UTF-8 text", () => {
+    const sql = views({ "orders.yaml": contract("      - { name: meta, logicalType: object }\n") });
+    expect(sql).toContain("[meta] VARCHAR(MAX) COLLATE Latin1_General_100_BIN2_UTF8");
+  });
+});

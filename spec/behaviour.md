@@ -23,7 +23,8 @@ source; the location is `abfss://<file system>@<account host>[/path]` or
 `https://<account host>[/path]`, and the two forms, and any case of the
 account host, name the same place. `csv` (standard) sets `header` (default
 `true`) and `delimiter` (default `,`); when the Synapse step does not set it,
-the landing step's own `csv` settings are used.
+the landing step's `csv` setting is used, else its reader `options` (`header`,
+as `true` or `"true"`, and `sep` or `delimiter`), as ADF's `adf-files` writes them.
 
 ## views.sql
 
@@ -32,7 +33,8 @@ One script per environment, `views.sql`, holds a view for each table kept by
 transform's view follows its inputs'. Each view is preceded by a statement that
 creates its schema when missing, is written `CREATE OR ALTER VIEW`, and ends
 with `GO`, so the script can run again. When the views are in more than one
-database, each database's views follow `USE [<database>];` and `GO`. A project
+database, `USE [<database>];` and `GO` come before a view whenever its database
+differs from the previous view's, and the views stay in the model's order. A project
 with no such table gets no script.
 
 A view over files is `SELECT * FROM OPENROWSET(BULK '<path>', DATA_SOURCE =
