@@ -8,4 +8,8 @@ export const synapseTypes: Record<string, string> = {
   boolean: "BIT",
   date: "DATE",
   timestamp: "DATETIME2(7)",
+  time: "TIME",
+  // Objects and arrays are read as their JSON text.
+  object: "VARCHAR(MAX)",
+  array: "VARCHAR(MAX)",
 };

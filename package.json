@@ -1,6 +1,6 @@
 {
   "name": "@ingestron/pack-synapse",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "description": "Azure Synapse serverless SQL methods for Ingestron: SQL views over landed files, transforms as views, and views over tables other packs store.",
   "license": "Apache-2.0",
   "author": "IntentLabs <hello@ingestron.io>",

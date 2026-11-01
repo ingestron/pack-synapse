@@ -34,9 +34,10 @@ export const contract: Record<string, ContractUse> = {
   [`${column}.physicalType`]: used("Types a column that has no logicalType."),
   [`${column}.quality`]: noRows,
   [`${column}.description`]: { use: "documentation" },
+  // Nothing enforces not-null in a view over files.
+  [`${column}.required`]: notYet("Synapse views check no rows."),
   ...Object.fromEntries(
     [
-      "required",
       "primaryKey",
       "primaryKeyPosition",
       "logicalTypeOptions",
