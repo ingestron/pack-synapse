@@ -80,11 +80,11 @@ listed in `inputs`.
 
 ## Settings
 
-| Setting                | Where    | Means                                                                                                                                                                        |
-| ---------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `data_source`          | platform | The external data source's name in the serverless database; one name, one location.                                                                                          |
-| `data_source_location` | platform | Where it points, `abfss://<file system>@<account>.dfs.core.windows.net` or `https://<account>.dfs.core.windows.net/<file system>`; every file a view reads must be under it. |
-| `csv`                  | standard | `header` (default `true`) and `delimiter` (default `,`) for CSV files; otherwise the landing step's own CSV settings are used.                                               |
+| Setting                | Where    | Means                                                                                                                                                                            |
+| ---------------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `data_source`          | platform | The external data source's name in the serverless database; one name, one location.                                                                                              |
+| `data_source_location` | platform | Where it points, `abfss://<file system>@<account>.dfs.core.windows.net` or `https://<account>.dfs.core.windows.net/<file system>`; every file a view reads must be under it.     |
+| `csv`                  | standard | `header` (default `true`) and `delimiter` (default `,`) for CSV files; when not set here, the landing step's CSV settings or reader options (ADF's `header` and `sep`) are used. |
 
 `ingestron request` lists what the platform team creates: the serverless
 database, a master key if it has none, the credential `<data_source>_identity`,

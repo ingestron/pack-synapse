@@ -10,6 +10,6 @@ export const synapseTypes: Record<string, string> = {
   timestamp: "DATETIME2(7)",
   time: "TIME",
   // Objects and arrays are read as their JSON text.
-  object: "VARCHAR(MAX)",
-  array: "VARCHAR(MAX)",
+  object: "VARCHAR(MAX) COLLATE Latin1_General_100_BIN2_UTF8",
+  array: "VARCHAR(MAX) COLLATE Latin1_General_100_BIN2_UTF8",
 };
