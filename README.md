@@ -4,6 +4,10 @@ The Azure Synapse serverless SQL pack: SQL views over the files a pack lands,
 transforms written as views, and views over tables another pack stores, so
 reporting tools such as Power BI read them as ordinary SQL tables.
 
+```sh
+npm install @ingestron/pack-synapse   # the ingestron CLI already includes it
+```
+
 ## Methods
 
 | Method          | Action    | Makes                                                                                           |
@@ -21,7 +25,8 @@ change only when contracts, transforms or naming change.
 ## Views only
 
 With a pack that lands files, such as ADF, Synapse can be the whole store.
-List it first: the first pack provides the defaults, such as the database name
+List it first, even though ADF runs first: the order in `packs` is precedence,
+and the first pack names and types the views, such as the database name
 (`{{ project }}_{{ environment }}`) and the column types:
 
 ```yaml
@@ -73,6 +78,20 @@ listed in `inputs`.
 | Upsert, history             | No: the files as they are                    | Yes                                                |
 | Heavy joins over large data | Recomputed on every read                     | Computed once per load                             |
 
+## Settings
+
+| Setting                | Where    | Means                                                                                                                                                                        |
+| ---------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `data_source`          | platform | The external data source's name in the serverless database; one name, one location.                                                                                          |
+| `data_source_location` | platform | Where it points, `abfss://<file system>@<account>.dfs.core.windows.net` or `https://<account>.dfs.core.windows.net/<file system>`; every file a view reads must be under it. |
+| `csv`                  | standard | `header` (default `true`) and `delimiter` (default `,`) for CSV files; otherwise the landing step's own CSV settings are used.                                               |
+
+`ingestron request` lists what the platform team creates: the serverless
+database, a master key if it has none, the credential `<data_source>_identity`,
+the external data source, the workspace's read access to the storage (with a
+resource instance rule when the storage has a firewall), and report users'
+permissions.
+
 ## Example
 
 ```ts
@@ -85,6 +104,11 @@ declare const landing: Pack;
 const result = loadDefinitions("definitions", { packs: [landing, synapse], environment: "prod" });
 if (result.model) console.log(synapse.build(result.model)["views.sql"] ?? "");
 ```
+
+## Sources
+
+Synapse syntax and permissions follow Microsoft Learn, accessed 2026-11-01;
+the pages are listed in [spec/references.md](spec/references.md).
 
 ## Documentation
 

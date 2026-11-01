@@ -6,6 +6,7 @@ import { contract } from "./contract.js";
 import { request } from "./request.js";
 import { synapseServe, synapseSql, synapseView } from "./methods.js";
 import { synapseTypes } from "./types.js";
+import { canonical } from "./locations.js";
 
 /**
  * The Synapse serverless SQL pack.
@@ -33,7 +34,7 @@ export const synapse: Pack = {
     "synapse-serve": synapseServe,
   },
   build,
-  check: transformInputs,
+  check: (model) => [...transformInputs(model), ...dataSourceLocations(model)],
   request,
   contract,
 };
@@ -55,4 +56,23 @@ function transformInputs(model: ResolvedModel): string[] {
             `transform "${table.name}" reads "${input}", which has no Synapse view; store it with synapse-view or serve it with synapse-serve`,
         ),
     ]);
+}
+
+/** One data source name is one location: the platform team creates it once per database. */
+function dataSourceLocations(model: ResolvedModel): string[] {
+  const seen = new Map<string, Set<string>>();
+  for (const table of model.tables) {
+    const step = table.serve?.method === "synapse-serve" ? table.serve : table.store;
+    if (!step || !/^synapse-(view|serve)$/.test(step.method)) continue;
+    const name = String(step.settings.data_source);
+    const locations = seen.get(name) ?? new Set<string>();
+    locations.add(canonical(String(step.settings.data_source_location)));
+    seen.set(name, locations);
+  }
+  return [...seen]
+    .filter(([, locations]) => locations.size > 1)
+    .map(
+      ([name, locations]) =>
+        `the data source \`${name}\` is at two locations, ${[...locations].join(" and ")}; give each location its own data_source name`,
+    );
 }

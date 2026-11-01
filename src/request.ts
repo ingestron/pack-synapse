@@ -25,14 +25,14 @@ export function request(model: ResolvedModel): RequestSection[] {
     {
       title: "External data source",
       lines: sources.flatMap(([name, location]) => [
-        `In ${where}, create a database scoped credential with \`IDENTITY = 'Managed Identity'\`, and the external data source ${code(name)} at ${code(location)} using it.`,
-        `Give the Synapse workspace's managed identity Storage Blob Data Reader on the storage behind ${code(location)}.`,
+        `In ${where}, create a master key if the database has none (\`CREATE MASTER KEY ENCRYPTION BY PASSWORD = '<a strong password>'\`), the database scoped credential ${code(credential(name))} with \`IDENTITY = 'Managed Identity'\`, and the external data source ${code(name)} at ${code(location)} using it.`,
+        `Give the Synapse workspace's managed identity Storage Blob Data Reader on the storage behind ${code(location)}; if the storage account has a firewall, allow the workspace with a resource instance rule.`,
       ]),
     },
     {
       title: "Report users",
       lines: [
-        `In ${where}, give each report user SELECT on the ${schemas.length === 1 ? "schema" : "schemas"} ${schemas.map(code).join(", ")}, REFERENCES on the database scoped credential, and ADMINISTER DATABASE BULK OPERATIONS, which views over files need.`,
+        `In ${where}, give each report user SELECT on the ${schemas.length === 1 ? "schema" : "schemas"} ${schemas.map(code).join(", ")}, REFERENCES on the database scoped ${sources.length === 1 ? "credential" : "credentials"} ${sources.map(([name]) => code(credential(name))).join(", ")}, and ADMINISTER DATABASE BULK OPERATIONS, which views over files need.`,
       ],
     },
   ];
@@ -45,3 +45,6 @@ function synapseStep(table: ResolvedTable): { table: ResolvedTable; step: Step }
 
 const unique = (values: string[]) => [...new Set(values)];
 const code = (text: string) => `\`${text}\``;
+
+/** The credential a data source reads with: `<data source>_identity`. */
+const credential = (dataSource: string) => `${dataSource}_identity`;

@@ -7,17 +7,33 @@ export function sourceStep(table: ResolvedTable): Step | undefined {
   return table.serve ? (table.store ?? table.ingest) : table.ingest;
 }
 
+/**
+ * A location in one form for comparing: `https://<account host, lower case>/<file system>/<path>`,
+ * from either `abfss://<file system>@<host>/<path>` or `https://<host>/<file system>/<path>`.
+ */
+export function canonical(location: string): string {
+  const abfss = /^abfss:\/\/([^@/]+)@([^/]+)(\/.*)?$/i.exec(location);
+  if (abfss)
+    return `https://${abfss[2]!.toLowerCase()}/${abfss[1]}${abfss[3] ?? ""}`.replace(/\/+$/, "");
+  const https = /^https:\/\/([^/]+)(\/.*)?$/i.exec(location);
+  if (https) return `https://${https[1]!.toLowerCase()}${https[2] ?? ""}`.replace(/\/+$/, "");
+  return location.replace(/\/+$/, "");
+}
+
 /** The output's path relative to the data source, or a problem. */
 export function relativePath(
   output: StepOutput,
   settings: Record<string, unknown>,
 ): { path: string } | { problem: string } {
-  const root = String(settings.data_source_location ?? "").replace(/\/+$/, "");
-  if (!output.location.startsWith(`${root}/`))
+  const root = canonical(String(settings.data_source_location ?? ""));
+  const location = canonical(output.location);
+  if (!location.startsWith(`${root}/`))
     return {
-      problem: `${output.location} is not under the data source ${String(settings.data_source)} (${root})`,
+      problem: `${output.location} is not under the data source ${String(settings.data_source)} (${String(settings.data_source_location)})`,
     };
-  return { path: output.location.slice(root.length + 1) };
+  const path = location.slice(root.length + 1);
+  if (/\*\*(?!$)/.test(path)) return { problem: `${path}: a path can use ** only at its end` };
+  return { path };
 }
 
 /** Problems with the files a step reads, as METHOD_CHECK messages. */

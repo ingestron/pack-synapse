@@ -18,7 +18,7 @@ const settings = {
     },
     data_source_location: {
       type: "string",
-      pattern: "^(abfss|https)://",
+      pattern: "^(abfss://[^@/]+@[^/]+|https://[^/]+)(/.*)?$",
       description: "The data source's location; every file a view reads must be under it.",
       examples: ["abfss://landing@acct.dfs.core.windows.net"],
     },
@@ -54,7 +54,7 @@ function checkView(table: ResolvedTable): string[] {
   return filesProblems(table, table.store!.settings);
 }
 
-const reference = /\{\{\s*tables\.([A-Za-z0-9_-]+)\s*\}\}/g;
+const reference = /\{\{-?\s*tables\.([A-Za-z0-9_-]+)\s*-?\}\}/g;
 
 /** A transform's SQL can sit inside a view: no leading WITH, and only its listed inputs. */
 function checkSql(table: ResolvedTable): string[] {
@@ -103,5 +103,10 @@ export const synapseServe: Method = {
   placement,
   defaults,
   settings,
-  check: (table) => filesProblems(table, table.serve!.settings),
+  check: (table) =>
+    table.store?.method === "synapse-view"
+      ? [
+          "the table is already a Synapse view, so serving it again would make a second view; remove serve",
+        ]
+      : filesProblems(table, table.serve!.settings),
 };

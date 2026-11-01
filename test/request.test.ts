@@ -31,14 +31,14 @@ describe("request", () => {
       {
         title: "External data source",
         lines: [
-          "In `erp_dev`, create a database scoped credential with `IDENTITY = 'Managed Identity'`, and the external data source `landing` at `abfss://landing@acct.dfs.core.windows.net` using it.",
-          "Give the Synapse workspace's managed identity Storage Blob Data Reader on the storage behind `abfss://landing@acct.dfs.core.windows.net`.",
+          "In `erp_dev`, create a master key if the database has none (`CREATE MASTER KEY ENCRYPTION BY PASSWORD = '<a strong password>'`), the database scoped credential `landing_identity` with `IDENTITY = 'Managed Identity'`, and the external data source `landing` at `abfss://landing@acct.dfs.core.windows.net` using it.",
+          "Give the Synapse workspace's managed identity Storage Blob Data Reader on the storage behind `abfss://landing@acct.dfs.core.windows.net`; if the storage account has a firewall, allow the workspace with a resource instance rule.",
         ],
       },
       {
         title: "Report users",
         lines: [
-          "In `erp_dev`, give each report user SELECT on the schema `bronze`, REFERENCES on the database scoped credential, and ADMINISTER DATABASE BULK OPERATIONS, which views over files need.",
+          "In `erp_dev`, give each report user SELECT on the schema `bronze`, REFERENCES on the database scoped credential `landing_identity`, and ADMINISTER DATABASE BULK OPERATIONS, which views over files need.",
         ],
       },
     ]);
