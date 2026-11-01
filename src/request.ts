@@ -1,18 +1,22 @@
 // What the platform team creates for the views: the database, the external
 // data source and its credential, and access for the workspace and report users.
 import type { RequestSection, ResolvedModel, ResolvedTable, Step } from "@ingestron/definitions";
+import { canonical } from "./locations.js";
 
 /** The Synapse sections of the platform request; none when no table uses the pack. */
 export function request(model: ResolvedModel): RequestSection[] {
   const steps = model.tables.flatMap(synapseStep);
   if (steps.length === 0) return [];
   const databases = unique(steps.map(({ table }) => table.fullName.catalog));
-  const sources = unique(
-    steps.map(
-      ({ step }) =>
-        `${String(step.settings.data_source)}\n${String(step.settings.data_source_location)}`,
-    ),
-  ).map((key) => key.split("\n") as [string, string]);
+  // One data source per name and place, however its location is written; the first form wins.
+  const byPlace = new Map<string, [string, string]>();
+  for (const { step } of steps) {
+    const name = String(step.settings.data_source);
+    const location = String(step.settings.data_source_location);
+    const key = `${name}\n${canonical(location).replace(/\/+$/, "")}`;
+    if (!byPlace.has(key)) byPlace.set(key, [name, location]);
+  }
+  const sources = [...byPlace.values()];
   const schemas = unique(steps.map(({ table }) => table.fullName.schema));
   const where = databases.map(code).join(", ");
   return [

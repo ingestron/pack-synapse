@@ -25,14 +25,13 @@ Synapse syntax used by this pack, accessed 2026-11-01:
 - [Build a logical data warehouse with serverless SQL pool](https://learn.microsoft.com/en-us/azure/synapse-analytics/sql/tutorial-logical-data-warehouse):
   granting REFERENCES on the credential when users read through views.
 - [Create a master key](https://learn.microsoft.com/en-us/sql/t-sql/statements/create-master-key-transact-sql)
-  (accessed 2026-11-01): a database scoped credential needs the database's
+  a database scoped credential needs the database's
   master key.
 - [Configure Azure Storage firewalls](https://learn.microsoft.com/en-us/azure/storage/common/storage-network-security)
-  (accessed 2026-11-01): resource instance rules let a Synapse workspace through
+  resource instance rules let a Synapse workspace through
   the storage firewall.
 - [Query folders and multiple files](https://learn.microsoft.com/en-us/azure/synapse-analytics/sql/query-folders-multiple-csv-files)
-  (accessed 2026-11-01): `**` reads a folder's subfolders only at the end of
+  `**` reads a folder's subfolders only at the end of
   the path.
-- [Cross-database queries](https://learn.microsoft.com/en-us/azure/synapse-analytics/sql/query-data-storage#cross-database-queries)
-  (accessed 2026-11-01): serverless databases name each other's objects in
-  three parts.
+- [T-SQL feature differences in Synapse SQL](https://learn.microsoft.com/en-us/azure/synapse-analytics/sql/overview-features):
+  serverless SQL supports cross-database queries with three-part names, and `USE`.
