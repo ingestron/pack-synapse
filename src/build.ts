@@ -1,6 +1,6 @@
 // views.sql: one re-runnable script per environment, a view per table that a
 // Synapse method keeps or serves, in the model's order (inputs first).
-import type { ResolvedModel, ResolvedTable, Step } from "@ingestron/definitions";
+import type { Column, ResolvedModel, ResolvedTable, Step } from "@ingestron/definitions";
 import { relativePath, sourceStep } from "./locations.js";
 import { filesQuery, quote, viewStatement, type ColumnOptions } from "./sql.js";
 
@@ -63,6 +63,7 @@ function filesView(table: ResolvedTable, step: Step, options: ColumnOptions): st
     dataSource: String(step.settings.data_source),
     format: output.format === "csv" ? "csv" : "parquet",
     columns: table.contract.columns,
+    extra: (output as { columns?: Column[] }).columns ?? [],
     csv: csvOf(table, step),
   });
 }

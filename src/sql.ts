@@ -33,16 +33,32 @@ export function columnList(columns: Column[], options: ColumnOptions = {}): stri
     .join(",\n");
 }
 
-/** `*`, or each column under its contract name when a file name differs. */
-function selectList(columns: Column[], options: ColumnOptions): string {
-  if (columns.every((column) => fileName(column, options) === column.name)) return "*";
-  return columns
-    .map((column) => {
+/** `*`, or each column under its contract name when a file name differs, then the extra columns. */
+function selectList(columns: Column[], options: ColumnOptions, extra: Column[] = []): string {
+  const same = columns.every((column) => fileName(column, options) === column.name);
+  if (same && extra.length === 0) return "*";
+  return [
+    ...columns.map((column) => {
       const file = fileName(column, options);
       return file === column.name ? quote(column.name) : `${quote(file)} AS ${quote(column.name)}`;
-    })
-    .join(", ");
+    }),
+    ...extra.map((column) =>
+      column.logicalType === "timestamp"
+        ? `CONVERT(DATETIME2(7), ${quote(column.name)}, 127) AS ${quote(column.name)}`
+        : quote(column.name),
+    ),
+  ].join(", ");
 }
+
+/** Extra columns are written as text by the step that adds them; timestamps are ISO 8601 text. */
+function extraList(extra: Column[]): string[] {
+  return extra.map(
+    (column) =>
+      `  ${quote(column.name)} ${column.logicalType === "timestamp" ? `VARCHAR(40) ${utf8}` : fallbackType}`,
+  );
+}
+
+const utf8 = "COLLATE Latin1_General_100_BIN2_UTF8";
 
 function fileName(column: Column, { renamed = true }: ColumnOptions): string {
   return !renamed && column.physicalName ? column.physicalName : column.name;
@@ -62,6 +78,8 @@ export interface FilesInput extends ColumnOptions {
   dataSource: string;
   format: "parquet" | "csv";
   columns: Column[];
+  /** Columns the files carry beyond the contract, such as audit columns, in order. */
+  extra?: Column[];
   csv?: { header: boolean; delimiter: string };
 }
 
@@ -76,11 +94,11 @@ export function filesQuery(input: FilesInput): string {
     ...formatOptions(input),
   ];
   return [
-    `SELECT ${selectList(input.columns, input)}`,
+    `SELECT ${selectList(input.columns, input, input.extra)}`,
     "FROM OPENROWSET(",
     options.join(",\n"),
     ") WITH (",
-    columnList(input.columns, input),
+    [columnList(input.columns, input), ...extraList(input.extra ?? [])].join(",\n"),
     ") AS [rows]",
   ].join("\n");
 }

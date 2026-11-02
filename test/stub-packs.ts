@@ -32,6 +32,13 @@ export const landing: Pack = {
               ),
               format: (table.ingest!.settings.format as "parquet" | "csv" | "json") ?? "parquet",
               loads: "replace",
+              // Audit columns, as ADF's adf-copy describes them.
+              ...(table.ingest!.settings.audit === true && {
+                columns: [
+                  { name: "_loaded_at", logicalType: "timestamp", nullable: false },
+                  { name: "_run_id", logicalType: "string", nullable: false },
+                ],
+              }),
             },
     },
   },

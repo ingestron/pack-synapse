@@ -141,3 +141,20 @@ describe("views over tables other packs store", () => {
     expect(files).toEqual({});
   });
 });
+
+const utf8 = "COLLATE Latin1_General_100_BIN2_UTF8";
+
+describe("audit columns the landed files carry", () => {
+  it("are read as text and timestamps converted, after the contract's columns", () => {
+    const sql = views({ "flow.yaml": flowWith("audit: true") });
+    expect(sql).toContain(
+      `  [_loaded_at] VARCHAR(40) ${utf8},\n  [_run_id] VARCHAR(8000) ${utf8}\n) AS [rows]`,
+    );
+    expect(sql).toContain(", CONVERT(DATETIME2(7), [_loaded_at], 127) AS [_loaded_at], [_run_id]");
+    expect(sql).not.toContain("SELECT *");
+  });
+
+  it("leave views without them as they were", () => {
+    expect(views()).toContain("SELECT *");
+  });
+});
