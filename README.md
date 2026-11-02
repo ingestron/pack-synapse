@@ -69,6 +69,10 @@ A transform's SQL is one T-SQL query over its inputs' views, written
 or end with `ORDER BY` (a trailing `;` is dropped), and it names only tables
 listed in `inputs`.
 
+Columns the landed files carry beyond the contract, such as ADF's audit
+columns, follow the contract's columns. They are read as text, and timestamps
+are converted to `DATETIME2(7)`.
+
 ## Views or tables
 
 |                             | Views (Synapse)                              | Tables (a store pack, served with `synapse-serve`) |
