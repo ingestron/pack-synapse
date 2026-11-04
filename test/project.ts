@@ -11,7 +11,7 @@ export const base: Record<string, string> = {
     "apiVersion: ingestron.io/v1",
     "kind: Standard",
     "id: acme",
-    "packs: [landing@1, synapse@1, tables@1]",
+    "packs: [landing@1, synapse@2, tables@1]",
     "store: { default: synapse-view }",
     "",
   ].join("\n"),
