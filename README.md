@@ -294,7 +294,7 @@ variable for it.
   its commands (such as `GO`, `:r`, `:setvar` or `!!`), is refused in every
   environment.
 - The header no longer names the environment.
-- Needs `@ingestron/definitions` 1.8 or later.
+- Needs `@ingestron/definitions` 1.9 or later.
 
 ## Sources
 
