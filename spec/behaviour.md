@@ -317,7 +317,8 @@ gets. The pack's tests check it again with the definitions package's
 ## 10. Problems
 
 `buildEnvironments` reports only `ENVIRONMENTS_DIFFER` and `DEPLOY_VALUE`, all
-errors. With any of them, `files` and `deployValues` are empty. Besides the
+errors, and the notice below. With any error, `files` and `deployValues` are
+empty. Besides the
 `structural` problems of `compareTargets`:
 
 | Code                  | Message                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | Location                                                                           |
@@ -335,6 +336,18 @@ errors. With any of them, `files` and `deployValues` are empty. Besides the
 | `DEPLOY_VALUE`        | `${envvar:<NAME>} would be the SQLCMD variable <NAME>, but sqlcmd keeps names that start with SQLCMD for its own settings.`, hint `Rename the environment variable so that its name does not start with SQLCMD.`                                                                                                                                                                                                                                                                                                                                                                                                                   | The value's first use                                                              |
 | `DEPLOY_VALUE`        | `${envvar:<NAME>} differs from another value supplied when deploying only in the case of its name, but SQLCMD variable names are the same in any case.`, hint `Give the environment variables names that differ in more than their case.`                                                                                                                                                                                                                                                                                                                                                                                          | The value's first use                                                              |
 | `DEPLOY_VALUE`        | `views.sql would hold ${envvar:<NAME>}, which is supplied only when deploying, where the pack cannot make it a SQLCMD variable; only a database, schema or view name, a file path, a data source and a CSV delimiter can be.`                                                                                                                                                                                                                                                                                                                                                                                                      | The value's first use                                                              |
+
+A `PACK_NOTICE` is a warning, so the files are still written. The pack gives
+one, for each deploy-time value in `deployValues` whose `NAME` is not all upper
+case, since Azure DevOps upper-cases the names of pipeline variables and
+sqlcmd (Go) looks the environment variable up as written:
+
+| Code          | Message                                                                                                                                                                                                                                                                                                                                | Located at                             |
+| ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------- |
+| `PACK_NOTICE` | `The deploy-time value ${envvar:<NAME>} is read from the environment variable <NAME>, in that case. Azure DevOps gives pipeline variables upper-case names, so on a Linux agent the deploy step sees <UPPER> and sqlcmd does not find <NAME>.`, hint `Write the name in upper case, ${envvar:<UPPER>}, and supply it under that name.` | The value's first use, when it has one |
+
+`<UPPER>` is `NAME` in upper case. A value is reported once, however many
+environments hold it.
 
 `<the place>` names the value: `the database of the views in layer <layer>`,
 `the schema of view [<schema>].[<view>]`, `the name of view …`,
