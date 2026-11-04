@@ -339,12 +339,13 @@ empty. Besides the
 
 A `PACK_NOTICE` is a warning, so the files are still written. The pack gives
 one, for each deploy-time value in `deployValues` whose `NAME` is not all upper
-case, since Azure DevOps upper-cases the names of pipeline variables and
-sqlcmd (Go) looks the environment variable up as written:
+case. sqlcmd (Go) looks the environment variable up as written, and Azure
+DevOps gives pipeline variables upper-case names, so such a name is found there
+only when the step maps it with `env:`:
 
-| Code          | Message                                                                                                                                                                                                                                                                                                                                | Located at                             |
-| ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------- |
-| `PACK_NOTICE` | `The deploy-time value ${envvar:<NAME>} is read from the environment variable <NAME>, in that case. Azure DevOps gives pipeline variables upper-case names, so on a Linux agent the deploy step sees <UPPER> and sqlcmd does not find <NAME>.`, hint `Write the name in upper case, ${envvar:<UPPER>}, and supply it under that name.` | The value's first use, when it has one |
+| Code          | Message                                                                                                                                                                                                                                                                                                   | Located at                             |
+| ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------- |
+| `PACK_NOTICE` | `The deploy-time value ${envvar:<NAME>} is read from the environment variable <NAME>, exactly as written. Azure DevOps gives pipeline variables upper-case names, so <NAME> will not be found there unless the step maps it with env:.`, hint `Write it in upper case, ${envvar:<UPPER>}, to avoid this.` | The value's first use, when it has one |
 
 `<UPPER>` is `NAME` in upper case. A value is reported once, however many
 environments hold it.
