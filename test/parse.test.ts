@@ -37,7 +37,7 @@ describe("views.sql with each environment's values", () => {
   it("is T-SQL when the deploying pipeline supplies a value, the check that it is set included", () => {
     const project = erpProject(
       ["  dev: {}", "  test: {}", "  prod: { values: { source: '${envvar:SYNAPSE_SOURCE}' } }"],
-      "{ source: landing, region: uk }",
+      "{ source: landing, region: north }",
     );
     const [, , prod] = sentBatches(erpEnvironments({ "project.yaml": project }));
     expect(prod![0]).toContain("IF N'${envvar:SYNAPSE_SOURCE}' = N'$' + N'(SYNAPSE_SOURCE)' THROW");

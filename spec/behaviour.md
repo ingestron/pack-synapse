@@ -164,7 +164,7 @@ other character. When the targets' code has the same number of tokens, each
 run of tokens that differs is one variable. Otherwise one variable stands for
 the tokens between the first and the last that differ, widened by one token
 where it would be empty in a target. So
-`WHERE region = '${values.region}'`, with `uk-south` in dev and `uk` in test,
+`WHERE region = '${values.region}'`, with `north-east` in dev and `north` in test,
 is `WHERE region = '$(value_totals)'`.
 
 ### 8.2 Variables

@@ -42,7 +42,7 @@ describe("views.sql for every environment", () => {
         ":on error exit",
         ':setvar database "erp_test"',
         ':setvar data_source "landing"',
-        ':setvar value_totals "uk"',
+        ':setvar value_totals "north"',
         ":r views.sql",
         "",
       ].join("\n"),
