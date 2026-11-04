@@ -252,9 +252,11 @@ step only through the step's `env:`, and gives other pipeline variables
 upper-case names, so map the value there (`env: { NAME: $(NAME) }`), as in
 GitHub Actions (`env: { NAME: ${{ secrets.NAME }} }`). `sqlcmd -v NAME=<value>`
 works too. The script stops before any view when the value is missing. The
-pack lists these values, with the name to set, in `deployValues`. Write the
-name in upper case: when it is not, generating warns, because Azure DevOps
-upper-cases pipeline variables and sqlcmd on Linux would not find it.
+pack lists these values, with the name to set, in `deployValues`.
+
+Write the name in upper case. Azure DevOps gives pipeline variables upper-case
+names, so a name such as `synapse_source` is not found there unless the step
+maps it with `env:` under that name, and generating warns about it.
 
 sqlcmd puts the value into `views.sql` as it is, inside a string, so it cannot
 hold `'`.

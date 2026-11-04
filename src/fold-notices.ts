@@ -5,8 +5,8 @@ import type { Models } from "./fold-problems.js";
 
 /**
  * A notice for each deploy-time value whose name is not all upper case. sqlcmd (Go) reads the
- * environment variable under the name as written, and Azure DevOps gives the pipeline
- * variables it passes to a step upper-case names, so a Linux agent would not find it.
+ * environment variable under the name as written, and Azure DevOps gives pipeline variables
+ * upper-case names, so a lower-case name is found there only when the step maps it with `env:`.
  */
 export function caseNotices(models: Models, deployValues: readonly SuppliedValue[]): PackNotice[] {
   return deployValues
@@ -18,8 +18,8 @@ export function caseNotices(models: Models, deployValues: readonly SuppliedValue
       return {
         code: "PACK_NOTICE",
         severity: "warning",
-        message: `The deploy-time value \${envvar:${name}} is read from the environment variable ${name}, in that case. Azure DevOps gives pipeline variables upper-case names, so on a Linux agent the deploy step sees ${name.toUpperCase()} and sqlcmd does not find ${name}.`,
-        hint: `Write the name in upper case, \${envvar:${name.toUpperCase()}}, and supply it under that name.`,
+        message: `The deploy-time value \${envvar:${name}} is read from the environment variable ${name}, exactly as written. Azure DevOps gives pipeline variables upper-case names, so ${name} will not be found there unless the step maps it with env:.`,
+        hint: `Write it in upper case, \${envvar:${name.toUpperCase()}}, to avoid this.`,
         ...(use && { file: use.file, ...(use.line !== undefined && { line: use.line }) }),
       };
     });
