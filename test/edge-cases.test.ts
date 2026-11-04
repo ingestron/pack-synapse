@@ -45,8 +45,8 @@ describe("columns", () => {
 
   it("uses the type written for a column when Synapse provides the defaults", () => {
     const standard = base["standard.yaml"]!.replace(
-      "packs: [landing@1, synapse@1, tables@1]",
-      "packs: [synapse@1, landing@1, tables@1]",
+      "packs: [landing@1, synapse@2, tables@1]",
+      "packs: [synapse@2, landing@1, tables@1]",
     );
     const contract = base["orders.yaml"]!.replace(
       "{ name: total, logicalType: number }",

@@ -1,7 +1,7 @@
 // What the platform team creates for the views: the database, the external
 // data source and its credential, and access for the workspace and report users.
 import type { RequestSection, ResolvedModel, ResolvedTable, Step } from "@ingestron/definitions";
-import { canonical } from "./locations.js";
+import { canonical, viewingStep } from "./locations.js";
 
 /** The Synapse sections of the platform request; none when no table uses the pack. */
 export function request(model: ResolvedModel): RequestSection[] {
@@ -43,8 +43,8 @@ export function request(model: ResolvedModel): RequestSection[] {
 }
 
 function synapseStep(table: ResolvedTable): { table: ResolvedTable; step: Step }[] {
-  const step = table.serve?.method === "synapse-serve" ? table.serve : table.store;
-  return step && /^synapse-(view|serve)$/.test(step.method) ? [{ table, step }] : [];
+  const step = viewingStep(table);
+  return step ? [{ table, step }] : [];
 }
 
 const unique = (values: string[]) => [...new Set(values)];

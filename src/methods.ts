@@ -2,6 +2,7 @@
 // view over a table another pack stores.
 import type { Method, ResolvedTable } from "@ingestron/definitions";
 import { filesProblems } from "./locations.js";
+import { tableReference } from "./plan.js";
 
 /** Where the views read files: the external data source the platform team creates. */
 const placement = { platform: ["data_source", "data_source_location"], standard: ["csv"] };
@@ -54,15 +55,13 @@ function checkView(table: ResolvedTable): string[] {
   return filesProblems(table, table.store!.settings);
 }
 
-const reference = /\{\{-?\s*tables\.([A-Za-z0-9_-]+)\s*-?\}\}/g;
-
 /** A transform's SQL can sit inside a view: no leading WITH, and only its listed inputs. */
 function checkSql(table: ResolvedTable): string[] {
   const { code, inputs } = table.transform!;
   const leadingWith = /^\s*with\b/i.test(code)
     ? ["a view's SQL cannot start with WITH; write the common table expression as a subquery"]
     : [];
-  const unlisted = [...code.matchAll(reference)]
+  const unlisted = [...code.matchAll(tableReference)]
     .map((match) => match[1]!)
     .filter((input) => !(input in inputs))
     .map((input) => `the SQL names {{ tables.${input} }}, which is not in inputs`);
