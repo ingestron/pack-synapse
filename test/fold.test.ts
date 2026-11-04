@@ -1,7 +1,14 @@
 // One views.sql for every environment: variables only where environments differ,
 // named after what they stand for, and a wrapper per environment that sets them.
 import { describe, expect, it } from "vitest";
-import { erpEnvironments, erpProject, fold, foldFailures, resolveAll } from "./fold-helpers.js";
+import {
+  erpEnvironments,
+  erpProject,
+  fold,
+  foldFailures,
+  resolveAll,
+  totals,
+} from "./fold-helpers.js";
 import { synapse } from "../src/index.js";
 import { base } from "./project.js";
 
@@ -24,13 +31,13 @@ describe("views.sql for every environment", () => {
   it("writes a variable only where the environments differ", () => {
     expect(views).toContain("USE [$(database)];\nGO");
     expect(views).toContain("  DATA_SOURCE = '$(data_source)',");
-    expect(views).toContain("WHERE region = '$(value_totals)'");
+    expect(views).toContain("WHERE region = '$(value_totals)'\n  AND total > $(value_totals_2)\n");
     // The same in every environment: written as it is.
     expect(views).toContain("IF SCHEMA_ID(N'bronze') IS NULL EXEC(N'CREATE SCHEMA [bronze]');");
     expect(views).toContain("CREATE OR ALTER VIEW [bronze].[orders] AS");
     expect(views).toContain("  BULK 'erp/orders/orders.parquet',");
-    expect(views).toContain("FROM [bronze].[orders] WHERE");
-    expect(views.match(/\$\(/g)).toHaveLength(3);
+    expect(views).toContain("FROM [bronze].[orders]\nWHERE");
+    expect(views.match(/\$\(/g)).toHaveLength(4);
   });
 
   it("sets every variable in each wrapper, then includes views.sql", () => {
@@ -43,6 +50,7 @@ describe("views.sql for every environment", () => {
         ':setvar database "erp_test"',
         ':setvar data_source "landing"',
         ':setvar value_totals "north"',
+        ':setvar value_totals_2 "2"',
         ":r views.sql",
         "",
       ].join("\n"),
@@ -54,6 +62,27 @@ describe("views.sql for every environment", () => {
   it("gives the same files each time for the same definitions", () => {
     const again = fold(resolveAll(erpEnvironments(), ["dev", "test", "prod"]));
     expect(again).toEqual(built);
+  });
+});
+
+describe("a transform's code", () => {
+  it("folds each value on its own line, whatever its number of tokens", () => {
+    // north-east has three tokens in dev and north one in test; the minimum is on the next line.
+    expect(views).toContain("WHERE region = '$(value_totals)'\n  AND total > $(value_totals_2)\n");
+    expect(built.files["environments/dev.sql"]).toContain(':setvar value_totals "north-east"');
+    expect(built.files["environments/dev.sql"]).toContain(':setvar value_totals_2 "1"');
+  });
+
+  it("shares a variable only within one transform's code", () => {
+    const contract = erpEnvironments()["orders.yaml"]!.replace(
+      "  - name: totals\n",
+      "  - name: large\n    logicalType: object\n    properties:\n      - { name: id, logicalType: integer }\n      - { name: total, logicalType: number }\n  - name: totals\n",
+    );
+    const large = totals.replace("id: totals", "id: large");
+    const files = erpEnvironments({ "orders.yaml": contract, "large.yaml": large });
+    const sql = fold(resolveAll(files, ["dev", "test", "prod"])).files["views.sql"]!;
+    expect(sql).toContain("WHERE region = '$(value_large)'");
+    expect(sql).toContain("WHERE region = '$(value_totals)'");
   });
 });
 
@@ -79,7 +108,7 @@ describe("variable names", () => {
     const sql = fold(several).files["views.sql"]!;
     expect(sql).toContain("USE [$(database_bronze)];");
     expect(sql).toContain("USE [$(database_silver)];");
-    expect(sql).toContain("FROM [$(database_bronze)].[bronze].[orders] WHERE");
+    expect(sql).toContain("FROM [$(database_bronze)].[bronze].[orders]\nWHERE");
     expect(foldFailures(several)).toEqual([]);
   });
 
@@ -92,7 +121,7 @@ describe("variable names", () => {
     const sql = fold(named).files["views.sql"]!;
     expect(sql).toContain("CREATE OR ALTER VIEW [$(schema_bronze)].[$(view_orders)] AS");
     expect(sql).toContain("EXEC(N'CREATE SCHEMA [$(schema_bronze)]')");
-    expect(sql).toContain("FROM [$(schema_bronze)].[$(view_orders)] WHERE");
+    expect(sql).toContain("FROM [$(schema_bronze)].[$(view_orders)]\nWHERE");
     expect(foldFailures(named)).toEqual([]);
   });
 

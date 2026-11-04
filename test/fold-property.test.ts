@@ -31,7 +31,7 @@ describe("the fold property", () => {
     const files = erpEnvironments({
       "project.yaml": erpProject(
         ["  dev: {}", "  test: {}", "  prod: { values: { source: '${envvar:SYNAPSE_SOURCE}' } }"],
-        "{ source: landing, region: north }",
+        "{ source: landing, region: north, minimum: 1 }",
       ),
     });
     expect(foldFailures(resolveAll(files, ["dev", "test", "prod"]))).toEqual([]);
