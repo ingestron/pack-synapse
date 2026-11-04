@@ -3,12 +3,13 @@
 // value in a transform's code, is refused.
 import { describe, expect, it } from "vitest";
 import { erpEnvironments, erpProject, fold, foldFailures, resolveAll } from "./fold-helpers.js";
+import { synapse } from "../src/index.js";
 import { base } from "./project.js";
 
 const environments = ["dev", "test", "prod"];
 
 /** The ERP project with prod's values as given. */
-function withProd(prod: string, defaults = "{ source: landing, region: north }") {
+function withProd(prod: string, defaults = "{ source: landing, region: north, minimum: 1 }") {
   const project = erpProject(["  dev: {}", "  test: {}", `  prod: { values: ${prod} }`], defaults);
   return resolveAll(erpEnvironments({ "project.yaml": project }), environments);
 }
@@ -23,7 +24,7 @@ describe("a value supplied when deploying", () => {
     const prod = files["environments/prod.sql"]!;
     expect(prod).not.toContain(":setvar SYNAPSE_SOURCE");
     expect(prod).toContain(
-      "-- The deploying pipeline supplies SYNAPSE_SOURCE, as environment variables of the same name.",
+      "-- The deploying pipeline supplies SYNAPSE_SOURCE, as an environment variable of that name, in the same case.",
     );
     expect(prod).toContain(
       "IF N'$(SYNAPSE_SOURCE)' = N'$' + N'(SYNAPSE_SOURCE)' THROW 50000, N'SYNAPSE_SOURCE is not set: the deploying pipeline supplies it, as an environment variable or with sqlcmd -v.', 1;\nGO\n:r views.sql\n",
@@ -33,7 +34,10 @@ describe("a value supplied when deploying", () => {
   });
 
   it("is left for the pipeline in every environment that supplies it", () => {
-    const models = withProd("{}", "{ source: '${envvar:SYNAPSE_SOURCE}', region: north }");
+    const models = withProd(
+      "{}",
+      "{ source: '${envvar:SYNAPSE_SOURCE}', region: north, minimum: 1 }",
+    );
     const { files, deployValues } = fold(models);
     for (const target of environments)
       expect(files[`environments/${target}.sql`]).not.toContain(":setvar SYNAPSE_SOURCE");
@@ -109,6 +113,10 @@ describe("a storage location supplied when deploying", () => {
       "{ location: '${envvar:LANDING_LOCATION}' }",
     );
     const { problems } = fold(models);
+    // build still writes prod's own views.sql, reading the files where they are written.
+    expect(synapse.build(models.prod!)["views.sql"]).toContain(
+      "  BULK 'abfss://landing@erplakedev.dfs.core.windows.net/erp/orders/orders.parquet',",
+    );
     expect(problems.map((problem) => problem.message)).toEqual([
       'The view of table "orders" reads abfss://landing@erplakedev.dfs.core.windows.net/erp/orders/orders.parquet by its path under data_source_location, ${envvar:LANDING_LOCATION}, in prod; with ${envvar:LANDING_LOCATION} supplied only when deploying, that path is not known when generating.',
     ]);
