@@ -16,13 +16,13 @@ import { landing, tables } from "./stub-packs.js";
 /** Each target's model, by name. */
 export type Models = Record<string, ResolvedModel>;
 
-/** A transform over orders whose code holds a value of each environment. */
+/** A transform over orders whose code holds two values of each environment, on two lines. */
 export const totals = [
   "apiVersion: ingestron.io/v1",
   "kind: Transform",
   "id: totals",
   "inputs: [orders]",
-  "code: \"SELECT id, total FROM {{ tables.orders }} WHERE region = '${values.region}'\"",
+  "code: \"SELECT id, total FROM {{ tables.orders }}\\nWHERE region = '${values.region}'\\n  AND total > ${values.minimum}\"",
   "contract: orders",
   "",
 ].join("\n");
@@ -35,17 +35,19 @@ const contract = base["orders.yaml"]!.replace(
 
 /**
  * The ERP project in dev, test and prod. The data source is the same in test and prod
- * but differs in dev; the database and the region in the transform's code differ in each.
+ * but differs in dev; the database, and the region and minimum in the transform's code,
+ * differ in each. The region has more tokens in dev than in test and prod.
  */
 export function erpEnvironments(changes: Record<string, string> = {}): Record<string, string> {
-  const values = (source: string, region: string) => `{ source: ${source}, region: ${region} }`;
+  const values = (source: string, region: string, minimum: number) =>
+    `{ source: ${source}, region: ${region}, minimum: ${minimum} }`;
   const project = [
     "id: erp",
-    `values: ${values("landing_dev", "north-east")}`,
+    `values: ${values("landing_dev", "north-east", 1)}`,
     "environments:",
     "  dev: {}",
-    `  test: { values: ${values("landing", "north")} }`,
-    `  prod: { values: ${values("landing", "west")} }`,
+    `  test: { values: ${values("landing", "north", 2)} }`,
+    `  prod: { values: ${values("landing", "west", 3)} }`,
     "imports: ['*.yaml']",
     "",
   ].join("\n");

@@ -22,6 +22,16 @@ export interface Place {
   values: Readonly<Record<string, string>>;
   /** The place in words, for messages: `the schema of view [bronze].[orders]`. */
   what: string;
+  /** The setting the value comes from, and where it is written, when the pack knows. */
+  setting?: Setting;
+}
+
+/** A setting's name, and the file and line it is written at, when known. */
+export interface Setting {
+  /** Left out when the value comes from no single setting, such as a transform's code. */
+  name?: string;
+  file?: string;
+  line?: number;
 }
 
 /** A SQLCMD variable of views.sql. */
@@ -101,6 +111,8 @@ function variableFor(
       ? variable.deploy?.name === deploy.name
       : !variable.deploy &&
         variable.kind === place.kind &&
+        // A value in a transform's code is shared only within that transform's code.
+        (place.kind !== "value" || variable.qualifier === place.qualifier) &&
         JSON.stringify(variable.values) === JSON.stringify(values);
   const index = fold.variables.findIndex(same);
   if (index < 0) {
@@ -151,11 +163,16 @@ function unfitFor(kind: Kind, value: string): string | undefined {
 }
 
 function cannotHold(place: Place, value: string): EnvironmentsProblem {
-  return differ(
-    `${capital(place.what)} is ${inEach(place.values)}, and a value that differs between environments cannot hold ${unfitFor(place.kind, value)}: sqlcmd puts a variable's value into views.sql as it is.`,
-    undefined,
-    "Make this value the same in every environment, or leave that character out of it.",
+  const character = unfitFor(place.kind, value);
+  const setting = place.setting?.name ? ` (setting ${place.setting.name})` : "";
+  const problem = differ(
+    `${capital(place.what)}${setting} is ${inEach(place.values)}, and a value that differs between environments cannot hold ${character}: sqlcmd puts a variable's value into views.sql as it is.`,
+    place.setting?.file,
+    place.kind === "value" && character === "a line break"
+      ? "Keep each value that differs between environments within one line of the code."
+      : "Make this value the same in every environment, or leave that character out of it.",
   );
+  return place.setting?.line === undefined ? problem : { ...problem, line: place.setting.line };
 }
 
 function embedded(place: Place, target: string, text: string, value: DeployValue) {
