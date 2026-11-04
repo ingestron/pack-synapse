@@ -2,7 +2,15 @@
 
 The Azure Synapse serverless SQL pack: SQL views over the files a pack lands,
 transforms written as views, and views over tables another pack stores, so
-reporting tools such as Power BI read them as ordinary SQL tables.
+reporting tools such as Power BI read them as ordinary SQL tables. Name it in
+your standard: `packs: [synapse@2]`.
+
+One `views.sql` covers every environment. A value is a SQLCMD variable,
+`$(name)`, only where environments differ, such as the database name;
+everything the same in every environment is written as it is. Each environment
+has a small script, `environments/<environment>.sql`, that sets those values
+and runs `views.sql`, so a reviewer reads the views once and sees exactly what
+changes between dev and prod.
 
 ```sh
 npm install @ingestron/pack-synapse   # the ingestron CLI already includes it
@@ -17,10 +25,9 @@ npm install @ingestron/pack-synapse   # the ingestron CLI already includes it
 | `synapse-serve` | serve     | A view over the files another pack's store keeps, read from where that pack says.               |
 
 Views read Parquet and CSV files through an external data source and type
-each column from the contract. The pack writes one re-runnable script per
-environment, `views.sql`; run it at deploy time, with Synapse Studio, `sqlcmd`
-or a CI step, against the serverless database that holds the views. Views
-change only when contracts, transforms or naming change.
+each column from the contract. `views.sql` is re-runnable: it selects each
+view's database with `USE`, and creates or alters each view. Views change only
+when contracts, transforms or naming change.
 
 ## Views only
 
@@ -30,7 +37,7 @@ and the first pack names and types the views, such as the database name
 (`{{ project }}_{{ environment }}`) and the column types:
 
 ```yaml
-packs: [synapse@1, adf@1]
+packs: [synapse@2, adf@2]
 store: { default: synapse-view }
 ```
 
@@ -96,23 +103,148 @@ the external data source, the workspace's read access to the storage (with a
 resource instance rule when the storage has a firewall), and report users'
 permissions.
 
-## Example
+## One script for every environment
+
+Most people use this through the [`ingestron`](https://www.npmjs.com/package/ingestron)
+command, which writes the files to `build/synapse/`:
+
+```text
+build/synapse/
+  views.sql
+  environments/dev.sql
+  environments/test.sql
+  environments/prod.sql
+```
+
+In `views.sql`, the values that differ are variables:
+
+```sql
+USE [$(database)];
+GO
+
+IF SCHEMA_ID(N'bronze') IS NULL EXEC(N'CREATE SCHEMA [bronze]');
+GO
+CREATE OR ALTER VIEW [bronze].[orders] AS
+SELECT *
+FROM OPENROWSET(
+  BULK 'erp/orders/orders.parquet',
+  DATA_SOURCE = '$(data_source)',
+  FORMAT = 'PARQUET'
+) WITH (
+  [id] BIGINT,
+  [total] FLOAT
+) AS [rows];
+GO
+```
+
+Each environment's script sets them, then includes `views.sql`:
+
+```sql
+:on error exit
+:setvar database "erp_prod"
+:setvar data_source "landing"
+:r views.sql
+```
+
+Variables are named after what they stand for: `database` (or
+`database_<layer>` when an environment's views are in several databases),
+`schema_<layer>`, `view_<table>`, `path_<table>`, `data_source`,
+`delimiter_<table>`, and `value_<table>` for a value in a transform's code.
+The rules are in [spec/behaviour.md](spec/behaviour.md).
+
+In code:
 
 ```ts
-import { loadDefinitions, type Pack } from "@ingestron/definitions";
+import { loadDefinitions, type Pack, type ResolvedModel } from "@ingestron/definitions";
 import { synapse } from "@ingestron/pack-synapse";
 
 // The pack that lands the files, such as @ingestron/pack-adf.
 declare const landing: Pack;
 
-const result = loadDefinitions("definitions", { packs: [landing, synapse], environment: "prod" });
-if (result.model) console.log(synapse.build(result.model)["views.sql"] ?? "");
+const models: Record<string, ResolvedModel> = {};
+for (const environment of ["dev", "prod"]) {
+  const result = loadDefinitions("definitions", {
+    packs: [landing, synapse],
+    environment,
+    deployTime: true,
+    environmentsTogether: true,
+  });
+  if (result.model) models[environment] = result.model;
+}
+const { files, problems } = synapse.buildEnvironments!(models);
+for (const problem of problems) console.log(problem.code, problem.message);
+for (const path of Object.keys(files)) console.log(path);
 ```
+
+## Deploy
+
+Run each environment's script with `sqlcmd` from the folder that holds
+`views.sql`, the same files for every environment. sqlcmd reads the `:r`
+path from the folder it starts in, not from the script's own folder:
+
+```sh
+cd build/synapse
+sqlcmd -S <workspace>-ondemand.sql.azuresynapse.net -i environments/prod.sql
+```
+
+Replace `<workspace>` with your Synapse workspace's name, and add your sign-in
+options, such as `--authentication-method ActiveDirectoryDefault` for
+sqlcmd (Go). The script stops at the first error with a non-zero exit code,
+so a CI step fails when a view does.
+
+- **GitHub Actions:** a `run` step with `working-directory: build/synapse`.
+  The Ubuntu runner has no sqlcmd, so install it first; the Windows runner has
+  it.
+- **Azure DevOps:** an `AzureCLI@2` step with
+  `workingDirectory: build/synapse` that runs sqlcmd, so it runs signed in.
+
+A value written as `${envvar:NAME}` in the definitions is supplied when
+deploying: `views.sql` uses it as `$(NAME)`, and the scripts of the
+environments that supply it leave it unset. Set `NAME` as an environment
+variable of the deploy step, from a pipeline variable or secret; sqlcmd reads
+it as a scripting variable. (`sqlcmd -v NAME=<value>` works too, except with
+the ODBC sqlcmd on Linux and macOS, which has no `-v`.) The script stops if
+the value is missing. The pack lists these values, with the name to set, in
+`deployValues`.
+
+sqlcmd puts the value into `views.sql` as it is, so it cannot hold `'` or `]`.
+Only a whole value can be supplied this way: a `${envvar:…}` inside a longer
+value, or in a transform's code, is refused. When the files and the data
+source share one, such as the storage account in
+`abfss://landing@${envvar:ACCOUNT}.dfs.core.windows.net`, `views.sql` needs no
+variable for it.
+
+## What changed in 2.0
+
+- One `views.sql` in `build/synapse/`, with `environments/<environment>.sql`
+  for each environment, in place of a `views.sql` per environment in
+  `build/<environment>/`. Change the standard to `synapse@2`, then delete the
+  old folders; `ingestron check` fails until they are gone.
+- Deploy with `sqlcmd -i environments/<environment>.sql` from
+  `build/synapse/`. `views.sql` with variables does not run on its own, so
+  Synapse Studio cannot run it.
+- `views.sql` starts with `USE [<database>]`, also when the views are in one
+  database, so it no longer matters which database sqlcmd connects to.
+- Databases, schemas and view names are as in 1.x, so the first 2.0 run
+  alters each existing view in place. As in 1.x, nothing drops a view that is
+  no longer generated.
+- `${envvar:…}` values are supplied when deploying, not read when generating.
+  Set them in the deploy step (see [Deploy](#deploy)).
+- Environments may differ only in values: a table built in some environments
+  only, files read in another format, or a transform's code that reads other
+  inputs is `ENVIRONMENTS_DIFFER`. A value that differs cannot hold `'`, `]`
+  or a line break, which sqlcmd would put into `views.sql` as they are. A view
+  that would hold `$(` anywhere, in any environment, is refused: sqlcmd reads
+  it as a variable.
+- The header no longer names the environment.
+- Needs `@ingestron/definitions` 1.8 or later.
 
 ## Sources
 
 Synapse syntax and permissions follow Microsoft Learn, accessed 2026-11-01;
-the pages are listed in [spec/references.md](spec/references.md).
+sqlcmd's commands, variables and variants follow Microsoft Learn and the
+sqlcmd (Go) v1.10.0 source, accessed 2026-11-05. The pages are listed in
+[spec/references.md](spec/references.md).
 
 ## Documentation
 
