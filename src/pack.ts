@@ -1,9 +1,10 @@
 // The pack: views in Azure Synapse serverless SQL over files and tables other
 // packs land or store, and transforms as views.
 import type { Pack, ResolvedModel } from "@ingestron/definitions";
-import { build, statementText } from "./build.js";
+import { build } from "./build.js";
 import { buildEnvironments } from "./fold.js";
-import { hasView, plan } from "./plan.js";
+import { hasView } from "./plan.js";
+import { sqlcmdProblems } from "./sqlcmd-checks.js";
 import { contract } from "./contract.js";
 import { request } from "./request.js";
 import { synapseServe, synapseSql, synapseView } from "./methods.js";
@@ -40,7 +41,7 @@ export const synapse: Pack = {
   check: (model) => [
     ...transformInputs(model),
     ...dataSourceLocations(model),
-    ...variableLookalikes(model),
+    ...sqlcmdProblems(model),
   ],
   request,
   contract,
@@ -81,26 +82,5 @@ function dataSourceLocations(model: ResolvedModel): string[] {
     .map(
       ([name, locations]) =>
         `the data source \`${name}\` is at two locations, ${[...locations].join(" and ")}; give each location its own data_source name`,
-    );
-}
-
-/**
- * sqlcmd reads `$(` anywhere in views.sql, in strings too, as the start of a variable, so
- * no view may hold it.
- */
-function variableLookalikes(model: ResolvedModel): string[] {
-  if (!model.tables.some(hasView)) return [];
-  let statements;
-  try {
-    statements = plan(model).statements;
-  } catch {
-    // A view over files outside its data source: the method's check reports it.
-    return [];
-  }
-  return statements
-    .filter((statement) => statement.kind === "view" && statementText(statement).includes("$("))
-    .map(
-      (statement) =>
-        `the view of table "${(statement as { table: string }).table}" would hold "$(", which sqlcmd reads as the start of a variable such as $(database), even in a string; leave "$(" out of its names, path, columns and code`,
     );
 }
