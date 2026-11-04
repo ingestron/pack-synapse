@@ -21,7 +21,7 @@ const patterns: [Token["kind"], RegExp][] = [
 ];
 
 /** The batch's tokens, or the first problem: an unclosed quote, comment or bracket. */
-export function tokenize(batch: string): { tokens: Token[]; problem?: string } {
+export function tokenise(batch: string): { tokens: Token[]; problem?: string } {
   const tokens: Token[] = [];
   let rest = batch;
   while (rest !== "") {
@@ -60,7 +60,7 @@ function blockCommentEnd(text: string): number {
  * `GO` or `$(` left in the text, and CREATE VIEW anywhere but first in its batch.
  */
 export function batchProblems(batch: string): string[] {
-  const { tokens, problem } = tokenize(batch);
+  const { tokens, problem } = tokenise(batch);
   if (problem) return [problem];
   const code = tokens.filter((token) => token.kind !== "space" && token.kind !== "comment");
   const problems = nestingProblems(code);
