@@ -23,10 +23,10 @@ describe("the case of a deploy-time value's name", () => {
         code: "PACK_NOTICE",
         severity: "warning",
         message:
-          "The deploy-time value ${envvar:synapse_source} is read from the environment variable synapse_source, in that case. Azure DevOps gives pipeline variables upper-case names, so on a Linux agent the deploy step sees SYNAPSE_SOURCE and sqlcmd does not find synapse_source.",
-        hint: "Write the name in upper case, ${envvar:SYNAPSE_SOURCE}, and supply it under that name.",
+          "The deploy-time value ${envvar:synapse_source} is read from the environment variable synapse_source, exactly as written. Azure DevOps gives pipeline variables upper-case names, so synapse_source will not be found there unless the step maps it with env:.",
+        hint: "Write it in upper case, ${envvar:SYNAPSE_SOURCE}, to avoid this.",
         file: "project.yaml",
-        line: expect.any(Number),
+        line: 6,
       },
     ]);
     expect(deployValues).toEqual([{ name: "synapse_source", suppliedAs: ["synapse_source"] }]);
