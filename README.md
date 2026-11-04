@@ -178,34 +178,81 @@ for (const path of Object.keys(files)) console.log(path);
 
 ## Deploy
 
-Run each environment's script with `sqlcmd` from the folder that holds
+Run each environment's script with sqlcmd from the folder that holds
 `views.sql`, the same files for every environment. sqlcmd reads the `:r`
-path from the folder it starts in, not from the script's own folder:
+path from the folder it starts in, not from the script's own folder. On your
+own computer:
 
 ```sh
 cd build/synapse
-sqlcmd -S <workspace>-ondemand.sql.azuresynapse.net -i environments/prod.sql
+sqlcmd -S <workspace>-ondemand.sql.azuresynapse.net --authentication-method ActiveDirectoryInteractive -i environments/dev.sql
 ```
 
-Replace `<workspace>` with your Synapse workspace's name, and add your sign-in
-options, such as `--authentication-method ActiveDirectoryDefault` for
-sqlcmd (Go). The script stops at the first error with a non-zero exit code,
-so a CI step fails when a view does.
+Replace `<workspace>` with your Synapse workspace's name. This is sqlcmd
+(Go); install it with `winget install sqlcmd` or `brew install sqlcmd`, or from
+its [releases](https://github.com/microsoft/go-sqlcmd/releases). The script
+stops at the first error with a non-zero exit code, so a CI step fails when a
+view does.
 
-- **GitHub Actions:** a `run` step with `working-directory: build/synapse`.
-  The Ubuntu runner has no sqlcmd, so install it first; the Windows runner has
-  it.
+### In CI
+
+Use sqlcmd (Go), pinned to a release, with
+`--authentication-method ActiveDirectoryDefault`. That sign-in uses the Azure
+CLI's: after `azure/login` in GitHub Actions, and inside an `AzureCLI@2` step
+in Azure DevOps. The ODBC sqlcmd cannot sign in this way: its `-G` signs in
+with a user name and password, Microsoft Entra integrated authentication or an
+interactive prompt, never with the pipeline's sign-in.
+
+GitHub's hosted runners and Azure DevOps's Microsoft-hosted agents use the same
+images. The Ubuntu images have no sqlcmd, and the Windows images have only the
+ODBC sqlcmd, so install sqlcmd (Go) first, checked by its SHA-256. On Linux, in
+a `run` step (GitHub) or a `bash` step (Azure DevOps):
+
+```sh
+curl -fsSL -o sqlcmd.tar.bz2 https://github.com/microsoft/go-sqlcmd/releases/download/v1.10.0/sqlcmd-linux-amd64.tar.bz2
+echo "92516d98c63d99b0994de5b61350c91f6915f9b76f139a59039fbcb225c2e987  sqlcmd.tar.bz2" | sha256sum -c -
+dir="$RUNNER_TEMP/sqlcmd"   # Azure DevOps: dir="$AGENT_TEMPDIRECTORY/sqlcmd"
+mkdir -p "$dir" && tar -xjf sqlcmd.tar.bz2 -C "$dir" sqlcmd
+echo "$dir" >> "$GITHUB_PATH"   # Azure DevOps: echo "##vso[task.prependpath]$dir"
+```
+
+On Windows, in a PowerShell step, which puts sqlcmd (Go) before the image's
+ODBC sqlcmd on `PATH`:
+
+```powershell
+Invoke-WebRequest https://github.com/microsoft/go-sqlcmd/releases/download/v1.10.0/sqlcmd-windows-amd64.zip -OutFile sqlcmd.zip
+if ((Get-FileHash sqlcmd.zip -Algorithm SHA256).Hash -ne "A4C28332FCC6E497D655E53AC8F4939F4AB170F9CFD32D0FA5081B60F4D9D691") { throw "sqlcmd.zip is not the v1.10.0 release" }
+$dir = "$env:RUNNER_TEMP\sqlcmd"   # Azure DevOps: $dir = "$env:AGENT_TEMPDIRECTORY\sqlcmd"
+Expand-Archive sqlcmd.zip -DestinationPath $dir
+$dir | Out-File -FilePath $env:GITHUB_PATH -Append   # Azure DevOps: Write-Host "##vso[task.prependpath]$dir"
+```
+
+Then, signed in, from `build/synapse`:
+
+- **GitHub Actions:** after `azure/login`, a `run` step with
+  `working-directory: build/synapse`.
 - **Azure DevOps:** an `AzureCLI@2` step with
-  `workingDirectory: build/synapse` that runs sqlcmd, so it runs signed in.
+  `workingDirectory: build/synapse`.
+
+```sh
+sqlcmd -S <workspace>-ondemand.sql.azuresynapse.net --authentication-method ActiveDirectoryDefault -i environments/prod.sql
+```
+
+Do not pass `-X`, which stops sqlcmd reading environment variables, or `-x`,
+which stops it replacing variables.
+
+### Values supplied when deploying
 
 A value written as `${envvar:NAME}` in the definitions is supplied when
 deploying: `views.sql` uses it as `$(NAME)`, and the scripts of the
-environments that supply it leave it unset. Set `NAME` as an environment
-variable of the deploy step, from a pipeline variable or secret; sqlcmd reads
-it as a scripting variable. (`sqlcmd -v NAME=<value>` works too, except with
-the ODBC sqlcmd on Linux and macOS, which has no `-v`.) The script stops if
-the value is missing. The pack lists these values, with the name to set, in
-`deployValues`.
+environments that supply it leave it unset. Set an environment variable named
+exactly `NAME`, in the same case, on the deploy step: sqlcmd (Go) looks it up
+as written, and on Linux the case matters. Azure DevOps passes a secret to a
+step only through the step's `env:`, and gives other pipeline variables
+upper-case names, so map the value there (`env: { NAME: $(NAME) }`), as in
+GitHub Actions (`env: { NAME: ${{ secrets.NAME }} }`). `sqlcmd -v NAME=<value>`
+works too. The script stops before any view when the value is missing. The
+pack lists these values, with the name to set, in `deployValues`.
 
 sqlcmd puts the value into `views.sql` as it is, so it cannot hold `'` or `]`.
 Only a whole value can be supplied this way: a `${envvar:…}` inside a longer
@@ -221,29 +268,39 @@ variable for it.
   `build/<environment>/`. Change the standard to `synapse@2`, then delete the
   old folders; `ingestron check` fails until they are gone.
 - Deploy with `sqlcmd -i environments/<environment>.sql` from
-  `build/synapse/`. `views.sql` with variables does not run on its own, so
-  Synapse Studio cannot run it.
+  `build/synapse/` (see [Deploy](#deploy)). `views.sql` with variables does not
+  run on its own, so Synapse Studio cannot run it; run the same command on your
+  own computer instead. SSMS has a SQLCMD mode, but how it reads `:r` paths
+  has not been tested with these files.
 - `views.sql` starts with `USE [<database>]`, also when the views are in one
-  database, so it no longer matters which database sqlcmd connects to.
-- Databases, schemas and view names are as in 1.x, so the first 2.0 run
-  alters each existing view in place. As in 1.x, nothing drops a view that is
-  no longer generated.
+  database, so it no longer matters which database sqlcmd connects to. The
+  database is the one the naming standard gives (`{{ project }}_{{ environment }}`
+  by default). If you ran a 1.x `views.sql` connected to a database with
+  another name, change the naming to that name before the first 2.0 run;
+  otherwise the run fails, or creates the views a second time in the database
+  the naming gives.
+- Otherwise databases, schemas and view names are as in 1.x, so the first 2.0
+  run alters each existing view in place. As in 1.x, nothing drops a view that
+  is no longer generated.
 - `${envvar:…}` values are supplied when deploying, not read when generating.
-  Set them in the deploy step (see [Deploy](#deploy)).
+  Set them in the deploy step (see
+  [Values supplied when deploying](#values-supplied-when-deploying)).
 - Environments may differ only in values: a table built in some environments
   only, files read in another format, or a transform's code that reads other
   inputs is `ENVIRONMENTS_DIFFER`. A value that differs cannot hold `'`, `]`
-  or a line break, which sqlcmd would put into `views.sql` as they are. A view
-  that would hold `$(` anywhere, in any environment, is refused: sqlcmd reads
-  it as a variable.
+  or a line break, which sqlcmd would put into `views.sql` as they are.
+- A view that would hold `$(` anywhere, or a line that sqlcmd reads as one of
+  its commands (such as `GO`, `:r`, `:setvar` or `!!`), is refused in every
+  environment.
 - The header no longer names the environment.
 - Needs `@ingestron/definitions` 1.8 or later.
 
 ## Sources
 
 Synapse syntax and permissions follow Microsoft Learn, accessed 2026-11-01;
-sqlcmd's commands, variables and variants follow Microsoft Learn and the
-sqlcmd (Go) v1.10.0 source, accessed 2026-11-05. The pages are listed in
+sqlcmd's commands, variables, variants, sign-in and installation, and the hosted
+runners, follow Microsoft Learn, GitHub's documentation, the runner images and
+the sqlcmd (Go) v1.10.0 source, accessed 2026-11-05. The pages are listed in
 [spec/references.md](spec/references.md).
 
 ## Documentation

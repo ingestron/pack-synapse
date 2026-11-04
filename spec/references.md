@@ -57,9 +57,35 @@ the source commit the page reports in its metadata (`git_commit_id`).
   error.
 - [sqlcmd utility](https://learn.microsoft.com/en-us/sql/tools/sqlcmd/sqlcmd-utility)
   (ms.date 2026-10-10, commit `55c5c399c027f95352041bfd268df8b4de04d716`): the
-  two variants, sqlcmd (Go) and the ODBC sqlcmd; `-v` is Windows-only for the
-  ODBC sqlcmd ("Linux and macOS aren't supported"), which is why the deploying
-  pipeline supplies a value as an environment variable; `-b`; `-x`.
+  two variants, sqlcmd (Go) and the ODBC sqlcmd; the page says `-v` is
+  Windows-only for the ODBC sqlcmd ("Linux and macOS aren't supported"), though
+  `mssql-tools18` 18.7 on Linux takes it (checked below); `-b`; `-x` stops
+  variables being replaced, and `-X` stops environment variables being read.
+- [Authenticate with Microsoft Entra ID in sqlcmd](https://learn.microsoft.com/en-us/sql/tools/sqlcmd/sqlcmd-authentication)
+  (ms.date 2025-07-02, commit `d39a258806d66d8fa5dac445820be065e582ce6f`):
+  sqlcmd (Go)'s `--authentication-method ActiveDirectoryDefault` uses the Azure
+  SDK's `DefaultAzureCredential`; the ODBC sqlcmd's `-G` signs in with a user
+  name and password, Microsoft Entra integrated authentication, or an
+  interactive prompt (not on Linux or macOS), and has no method that takes the
+  Azure CLI's sign-in.
+- Azure SDK for Go, `azidentity` at
+  [v1.13.1](https://github.com/Azure/azure-sdk-for-go/blob/sdk/azidentity/v1.13.1/sdk/azidentity/default_azure_credential.go),
+  the version sqlcmd (Go) v1.10.0's `go.mod` names: `DefaultAzureCredential`
+  tries the environment, workload identity, managed identity, then the Azure
+  CLI, the Azure Developer CLI and Azure PowerShell. So after `azure/login`, or
+  inside `AzureCLI@2`, sqlcmd (Go) signs in as the pipeline.
+- [Download and install the sqlcmd utility](https://learn.microsoft.com/en-us/sql/tools/sqlcmd/sqlcmd-download-install)
+  (ms.date 2026-06-30, commit `d39a258806d66d8fa5dac445820be065e582ce6f`):
+  `winget install sqlcmd`, `choco install sqlcmd`, `brew install sqlcmd`, and
+  the release downloads; "Versions newer than 1.6 might not be available in all
+  package managers", which is why CI downloads a pinned release.
+- sqlcmd (Go)
+  [v1.10.0 release](https://github.com/microsoft/go-sqlcmd/releases/tag/v1.10.0):
+  `sqlcmd-linux-amd64.tar.bz2`, SHA-256
+  `92516d98c63d99b0994de5b61350c91f6915f9b76f139a59039fbcb225c2e987`, and
+  `sqlcmd-windows-amd64.zip`, SHA-256
+  `a4c28332fcc6e497d655e53ac8f4939f4ab170f9cfd32d0fa5081b60f4d9d691`, as GitHub
+  lists them and as the downloaded files hash.
 - sqlcmd (Go) source at tag
   [v1.10.0](https://github.com/microsoft/go-sqlcmd/tree/v1.10.0) (commit
   `affbc17e1e0e97b0bb625ef8185afea3d746067f`, released 2026-03-03, the latest
@@ -80,12 +106,37 @@ the source commit the page reports in its metadata (`git_commit_id`).
   (ms.date 2026-10-05, commit `14120b58fa737dafeda3680f8cdd66a48ac9becc`):
   serverless SQL pools support `USE`, three-part names and every
   control-of-flow statement.
-- GitHub-hosted runner images,
+- GitHub-hosted runner images:
   [Ubuntu 24.04](https://github.com/actions/runner-images/blob/799bcd0daf03c14c460e2662bcc9ca94a4a8aaa8/images/ubuntu/Ubuntu2404-Readme.md)
-  (2026-10-28) lists no sqlcmd, and
+  (2026-10-28) lists no sqlcmd, but lists `bzip2`, `curl` and Azure CLI 2.91.0;
   [Windows Server 2025](https://github.com/actions/runner-images/blob/a2d4955654f519bd5b559bffaea60d9f90156630/images/windows/Windows2025-Readme.md)
-  (2026-11-03) lists the SQL Server command-line utilities, so a Linux job
-  installs sqlcmd first.
+  (2026-11-03) has sqlcmd only as the Visual Studio component
+  `Microsoft.VisualStudio.Component.MSSQL.CMDLnUtils`, the ODBC sqlcmd. So
+  every job installs sqlcmd (Go).
+- [Microsoft-hosted agents for Azure Pipelines](https://learn.microsoft.com/en-us/azure/devops/pipelines/agents/hosted)
+  (ms.date 2026-10-06, commit `3fc18de83c91dbccff78dbc06c3844be8115472d`): the
+  agents' software is the runner images' (`ubuntu-latest` is Ubuntu 24.04,
+  `windows-latest` Windows Server 2025).
+- [AzureCLI@2](https://learn.microsoft.com/en-us/azure/devops/pipelines/tasks/reference/azure-cli-v2)
+  (ms.date 2026-09-23, commit `34563609fbc5e6a84eb754a34872fce30209548a`): the
+  script runs signed in with the service connection, in `workingDirectory`.
+- [Logging commands](https://learn.microsoft.com/en-us/azure/devops/pipelines/scripts/logging-commands)
+  (ms.date 2026-03-05, commit `1481c0d18812667ac57f38b2b70c34d924608ccc`):
+  `##vso[task.prependpath]`; secret variables reach a script only when mapped
+  in its `env`.
+- GitHub,
+  [workflow commands](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-commands):
+  a folder written to `GITHUB_PATH` comes before the rest of `PATH` in later
+  steps.
+
+Checked again on 2026-11-05 with the current ODBC sqlcmd, 18.7.0001.1
+(`mssql-tools18` 18.7.1.1 on Ubuntu 22.04): it reads `:r views.sql` from the
+folder it starts in and fails when started in `environments/`; it reads a value
+from an environment variable; it stops at an unknown variable with exit code
+1; and, unlike 13.1, it takes `-v` on Linux. The install commands in the
+README were run as written: the Linux one on Ubuntu 24.04, giving sqlcmd (Go)
+v1.10.0, and the Windows one in PowerShell 7.4.22 (on Linux, as no Windows
+host was available), each checking the release's SHA-256.
 
 Checked locally on 2026-11-05, with synthetic fixtures and no cloud access:
 sqlcmd (Go) 1.10.0 and the ODBC sqlcmd 13.1 (`mssql-tools` 14.0.6.0) both read
