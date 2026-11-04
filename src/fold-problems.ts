@@ -81,7 +81,7 @@ export function once(problems: readonly EnvironmentsProblem[]): EnvironmentsProb
 }
 
 /** A table's step setting in compareTargets' pointers. Names differ in every project, so are left out. */
-const settingPointer = /^\/tables\/\d+\/(?:ingest|store|serve)\/(?:settings|output)\/([^/]+)/;
+const settingPointer = /^\/tables\/(\d+)\/(ingest|store|serve)\/(?:settings|output)\/([^/]+)/;
 
 /**
  * The settings that differ between the targets, as a sentence naming each with its
@@ -91,12 +91,33 @@ export function settingsThatDiffer(differing: readonly TargetDifference[]): stri
   const settings = new Map<string, string>();
   for (const { pointer, values } of differing) {
     const match = settingPointer.exec(pointer);
-    const setting = match?.[1];
+    const setting = match?.[3];
     if (setting && !settings.has(setting) && settings.size < 3)
       settings.set(setting, `${setting} (${inEach(values)})`);
   }
   if (settings.size === 0) return "";
   return ` Settings that differ: ${[...settings.values()].join("; ")}.`;
+}
+
+/**
+ * Where the first step setting that differs is written in the first target, so a
+ * refusal points at it; undefined when no step setting differs or none records it.
+ */
+export function firstSettingAt(
+  models: Models,
+  differing: readonly TargetDifference[],
+): { file: string; line?: number } | undefined {
+  const first = Object.values(models)[0];
+  for (const { pointer } of differing) {
+    const match = settingPointer.exec(pointer);
+    if (!match || !first) continue;
+    const table = first.tables[Number(match[1])];
+    const step = table?.[match[2] as "ingest" | "store" | "serve"];
+    const origin = step?.origins[match[3]!];
+    if (origin?.file)
+      return { file: origin.file, ...(origin.line !== undefined && { line: origin.line }) };
+  }
+  return undefined;
 }
 
 /** The fix for a deploy-time value inside a longer text. */
