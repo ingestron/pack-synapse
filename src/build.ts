@@ -46,9 +46,14 @@ export function statementText(statement: Statement): string {
 
 /** The transform's SQL inside the view, selecting the contract's columns. */
 function transformQuery(query: TransformPlan): string {
-  const code = query.code.map(codeText).join("");
+  const code = codeOf(query);
   const columns = query.columns.map(quote).join(", ");
   return [`SELECT ${columns}`, "FROM (", code, ") AS [source]"].join("\n");
+}
+
+/** The transform's code as views.sql holds it, each input named by its view. */
+export function codeOf(query: TransformPlan): string {
+  return query.code.map(codeText).join("");
 }
 
 function codeText(part: CodePart): string {

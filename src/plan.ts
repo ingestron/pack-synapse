@@ -110,12 +110,12 @@ function filesPlan(
 ): FilesPlan {
   const output = sourceStep(table)!.output!;
   const relative = relativePath(output, step.settings);
-  // The method's check refuses this before a build; never write a wrong path.
-  if ("problem" in relative) throw new Error(relative.problem);
   return {
     kind: "files",
     ...options,
-    path: relative.path,
+    // Files the method's check refuses, or a location only known when deploying, which
+    // buildEnvironments refuses: the location as written, so build never fails.
+    path: "problem" in relative ? output.location : relative.path,
     dataSource: String(step.settings.data_source),
     format: output.format === "csv" ? "csv" : "parquet",
     columns: table.contract.columns,
