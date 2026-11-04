@@ -31,7 +31,7 @@ describe("the fold property", () => {
     const files = erpEnvironments({
       "project.yaml": erpProject(
         ["  dev: {}", "  test: {}", "  prod: { values: { source: '${envvar:SYNAPSE_SOURCE}' } }"],
-        "{ source: landing, region: uk }",
+        "{ source: landing, region: north }",
       ),
     });
     expect(foldFailures(resolveAll(files, ["dev", "test", "prod"]))).toEqual([]);
@@ -55,7 +55,7 @@ describe("the fold property", () => {
 
   it("fails when a wrapper leaves out a value it should set", () => {
     const pack = wrong("environments/test.sql", (text) =>
-      text.replace(':setvar value_totals "uk"\n', ""),
+      text.replace(':setvar value_totals "north"\n', ""),
     );
     expect(foldFailures(models, pack)).toContain(
       "With dev, test, prod, for test: sqlcmd errors is in the view but not in the render.",
