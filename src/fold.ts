@@ -11,6 +11,7 @@ import {
   type TargetDifference,
 } from "@ingestron/definitions";
 import { build, viewsFile, writeViews } from "./build.js";
+import { caseNotices } from "./fold-notices.js";
 import { foldPlans, type Plans } from "./fold-plan.js";
 import { markers, type Fold, type Variable } from "./fold-places.js";
 import { nameVariables } from "./fold-names.js";
@@ -57,7 +58,7 @@ export function buildEnvironments(models: Models): EnvironmentsBuild {
   const deployValues = suppliedValues(fold);
   const unlike = viewProblems(models, files, deployValues);
   if (unlike.length > 0) return empty(withSettings(unlike, models, differing));
-  return { files, deployValues, problems: [] };
+  return { files, deployValues, problems: caseNotices(models, deployValues) };
 }
 
 function empty(problems: EnvironmentsProblem[]): EnvironmentsBuild {
