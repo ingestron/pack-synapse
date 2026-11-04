@@ -224,7 +224,7 @@ Invoke-WebRequest https://github.com/microsoft/go-sqlcmd/releases/download/v1.10
 if ((Get-FileHash sqlcmd.zip -Algorithm SHA256).Hash -ne "A4C28332FCC6E497D655E53AC8F4939F4AB170F9CFD32D0FA5081B60F4D9D691") { throw "sqlcmd.zip is not the v1.10.0 release" }
 $dir = "$env:RUNNER_TEMP\sqlcmd"   # Azure DevOps: $dir = "$env:AGENT_TEMPDIRECTORY\sqlcmd"
 Expand-Archive sqlcmd.zip -DestinationPath $dir
-$dir | Out-File -FilePath $env:GITHUB_PATH -Append   # Azure DevOps: Write-Host "##vso[task.prependpath]$dir"
+$dir | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append   # Azure DevOps: Write-Host "##vso[task.prependpath]$dir"
 ```
 
 Then, signed in, from `build/synapse`:
@@ -254,7 +254,8 @@ GitHub Actions (`env: { NAME: ${{ secrets.NAME }} }`). `sqlcmd -v NAME=<value>`
 works too. The script stops before any view when the value is missing. The
 pack lists these values, with the name to set, in `deployValues`.
 
-sqlcmd puts the value into `views.sql` as it is, so it cannot hold `'` or `]`.
+sqlcmd puts the value into `views.sql` as it is, inside a string, so it cannot
+hold `'`.
 Only a whole value can be supplied this way: a `${envvar:…}` inside a longer
 value, or in a transform's code, is refused. When the files and the data
 source share one, such as the storage account in
