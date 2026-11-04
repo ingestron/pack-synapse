@@ -9,7 +9,7 @@ const twoEnvironments = (values: { dev: string; prod: string }, changes: Record<
     erpEnvironments({
       "project.yaml": erpProject(
         [`  dev: { values: ${values.dev} }`, `  prod: { values: ${values.prod} }`],
-        "{ source: landing, region: uk }",
+        "{ source: landing, region: north }",
       ),
       ...changes,
     }),
@@ -29,7 +29,7 @@ describe("environments that differ in more than values", () => {
       "flow.yaml": flow,
       "project.yaml": erpProject(
         ["  dev: { values: { store: synapse-view } }", "  prod: { values: { store: keep } }"],
-        "{ source: landing, region: uk }",
+        "{ source: landing, region: north }",
       ),
     });
     delete files["totals.yaml"];
@@ -113,9 +113,12 @@ describe("values sqlcmd cannot put into views.sql as they are", () => {
   });
 
   it("are refused when a value in a transform's code that differs spans lines", () => {
-    const models = twoEnvironments({ dev: "{ region: uk }", prod: '{ region: "eu\\nwest" }' }, {});
+    const models = twoEnvironments(
+      { dev: "{ region: north }", prod: '{ region: "south\\nwest" }' },
+      {},
+    );
     expect(messages(models)[0]!.message).toBe(
-      'A value in the code of transform "totals" is "uk" in dev and "eu\\nwest" in prod, and a value that differs between environments cannot hold a line break: sqlcmd puts a variable\'s value into views.sql as it is.',
+      'A value in the code of transform "totals" is "north" in dev and "south\\nwest" in prod, and a value that differs between environments cannot hold a line break: sqlcmd puts a variable\'s value into views.sql as it is.',
     );
   });
 

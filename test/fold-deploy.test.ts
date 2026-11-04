@@ -8,7 +8,7 @@ import { base } from "./project.js";
 const environments = ["dev", "test", "prod"];
 
 /** The ERP project with prod's values as given. */
-function withProd(prod: string, defaults = "{ source: landing, region: uk }") {
+function withProd(prod: string, defaults = "{ source: landing, region: north }") {
   const project = erpProject(["  dev: {}", "  test: {}", `  prod: { values: ${prod} }`], defaults);
   return resolveAll(erpEnvironments({ "project.yaml": project }), environments);
 }
@@ -33,7 +33,7 @@ describe("a value supplied when deploying", () => {
   });
 
   it("is left for the pipeline in every environment that supplies it", () => {
-    const models = withProd("{}", "{ source: '${envvar:SYNAPSE_SOURCE}', region: uk }");
+    const models = withProd("{}", "{ source: '${envvar:SYNAPSE_SOURCE}', region: north }");
     const { files, deployValues } = fold(models);
     for (const target of environments)
       expect(files[`environments/${target}.sql`]).not.toContain(":setvar SYNAPSE_SOURCE");

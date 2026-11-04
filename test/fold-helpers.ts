@@ -41,11 +41,11 @@ export function erpEnvironments(changes: Record<string, string> = {}): Record<st
   const values = (source: string, region: string) => `{ source: ${source}, region: ${region} }`;
   const project = [
     "id: erp",
-    `values: ${values("landing_dev", "uk-south")}`,
+    `values: ${values("landing_dev", "north-east")}`,
     "environments:",
     "  dev: {}",
-    `  test: { values: ${values("landing", "uk")} }`,
-    `  prod: { values: ${values("landing", "eu-west")} }`,
+    `  test: { values: ${values("landing", "north")} }`,
+    `  prod: { values: ${values("landing", "west")} }`,
     "imports: ['*.yaml']",
     "",
   ].join("\n");
