@@ -1,15 +1,17 @@
 // What stops one views.sql covering every environment: environments that differ in
 // more than values, and values that sqlcmd cannot put into views.sql as they are.
+import { compareTargets } from "@ingestron/definitions";
 import { describe, expect, it } from "vitest";
+import { firstSettingAt } from "../src/fold-problems.js";
 import { erpEnvironments, erpProject, fold, resolveAll, totals } from "./fold-helpers.js";
-import { base, problems } from "./project.js";
+import { base } from "./project.js";
 
 const twoEnvironments = (values: { dev: string; prod: string }, changes: Record<string, string>) =>
   resolveAll(
     erpEnvironments({
       "project.yaml": erpProject(
         [`  dev: { values: ${values.dev} }`, `  prod: { values: ${values.prod} }`],
-        "{ source: landing, region: north }",
+        "{ source: landing, region: north, minimum: 1 }",
       ),
       ...changes,
     }),
@@ -29,7 +31,7 @@ describe("environments that differ in more than values", () => {
       "flow.yaml": flow,
       "project.yaml": erpProject(
         ["  dev: { values: { store: synapse-view } }", "  prod: { values: { store: keep } }"],
-        "{ source: landing, region: north }",
+        "{ source: landing, region: north, minimum: 1 }",
       ),
     });
     delete files["totals.yaml"];
@@ -97,42 +99,56 @@ describe("environments that differ in more than values", () => {
   });
 });
 
+describe("where a refusal with no fix of its own points", () => {
+  it("is the first step setting that differs, where the definitions write it", () => {
+    const flow = base["flow.yaml"]!.replace(
+      "source: erp\n",
+      "source: erp\ningest: { with: { format: '${values.format}' } }\n",
+    );
+    const models = twoEnvironments(
+      { dev: "{ format: csv }", prod: "{ format: parquet }" },
+      { "flow.yaml": flow },
+    );
+    expect(firstSettingAt(models, compareTargets(models).differing)).toEqual({
+      file: "flow.yaml",
+      line: 5,
+    });
+  });
+});
+
 describe("values sqlcmd cannot put into views.sql as they are", () => {
-  it("are refused when a name that differs holds a quote", () => {
+  it("are refused when a name that differs holds a quote, at the setting it comes from", () => {
     const models = twoEnvironments(
       { dev: "{ source: landing }", prod: `{ source: "land'ing" }` },
       {},
     );
-    expect(messages(models)).toEqual([
+    expect(fold(models).problems).toEqual([
       {
         code: "ENVIRONMENTS_DIFFER",
+        severity: "error",
         message:
-          'The data source of view [bronze].[orders] is "landing" in dev and "land\'ing" in prod, and a value that differs between environments cannot hold \': sqlcmd puts a variable\'s value into views.sql as it is.',
+          'The data source of view [bronze].[orders] (setting data_source) is "landing" in dev and "land\'ing" in prod, and a value that differs between environments cannot hold \': sqlcmd puts a variable\'s value into views.sql as it is.',
+        hint: "Make this value the same in every environment, or leave that character out of it.",
+        file: "platform.yaml",
+        line: 6,
       },
     ]);
   });
 
   it("are refused when a value in a transform's code that differs spans lines", () => {
     const models = twoEnvironments(
-      { dev: "{ region: north }", prod: '{ region: "south\\nwest" }' },
+      { dev: "{ region: north, minimum: 1 }", prod: '{ region: "south\\nwest" }' },
       {},
     );
-    expect(messages(models)[0]!.message).toBe(
-      'A value in the code of transform "totals" is "north" in dev and "south\\nwest" in prod, and a value that differs between environments cannot hold a line break: sqlcmd puts a variable\'s value into views.sql as it is.',
-    );
-  });
-
-  it("are refused in every environment when a view would hold $(", () => {
-    const code = totals.replace("region = '${values.region}'", "note = '$(x)'");
-    const found = problems({
-      "totals.yaml": code,
-      "orders.yaml": erpEnvironments()["orders.yaml"]!,
-    });
-    expect(found).toContainEqual({
-      code: "PACK_CHECK",
-      message: expect.stringContaining(
-        'the view of table "totals" would hold "$(", which sqlcmd reads as the start of a variable such as $(database), even in a string',
-      ),
-    });
+    expect(fold(models).problems).toEqual([
+      {
+        code: "ENVIRONMENTS_DIFFER",
+        severity: "error",
+        message:
+          'A value in the code of transform "totals" is "north" in dev and "south\\nwest" in prod, and a value that differs between environments cannot hold a line break: sqlcmd puts a variable\'s value into views.sql as it is.',
+        hint: "Keep each value that differs between environments within one line of the code.",
+        file: "totals.yaml",
+      },
+    ]);
   });
 });

@@ -48,7 +48,10 @@ export function relativePath(
 
 /**
  * True when a text holds a value supplied only when deploying, `${envvar:NAME}`, as a
- * model resolved with `deployTime` writes it.
+ * model resolved with `deployTime` writes it. A method's check gets only the table, not
+ * the model's `deployValues`, so it cannot use the definitions package's
+ * `splitDeployText`, which the fold uses; this matches the text the configuration
+ * specification gives those values (NAME is `[A-Za-z_][A-Za-z0-9_]*`).
  */
 export function holdsDeployText(text: string): boolean {
   return /\$\{envvar:[A-Za-z_][A-Za-z0-9_]*\}/.test(text);

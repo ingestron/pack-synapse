@@ -6,6 +6,7 @@ import {
   type EnvironmentsBuild,
   type EnvironmentsProblem,
   type ResolvedModel,
+  type ResolvedTable,
   type SuppliedValue,
   type TargetDifference,
 } from "@ingestron/definitions";
@@ -16,6 +17,7 @@ import { nameVariables } from "./fold-names.js";
 import {
   deployProblem,
   differ,
+  firstSettingAt,
   listOf,
   once,
   settingsThatDiffer,
@@ -41,9 +43,9 @@ export function buildEnvironments(models: Models): EnvironmentsBuild {
   if (unknown.length > 0) return empty(unknown);
   const plans: Plans = Object.fromEntries(targets.map((target) => [target, plan(models[target]!)]));
   const fold: Fold = { targets, models, variables: [], problems: [] };
-  const template = foldPlans(fold, plans, tableFiles(models[targets[0]!]!));
+  const template = foldPlans(fold, plans, tablesOf(models[targets[0]!]!));
   nameVariables(fold, plans);
-  if (fold.problems.length > 0) return empty(withSettings(fold.problems, differing));
+  if (fold.problems.length > 0) return empty(withSettings(fold.problems, models, differing));
   const views = writeViews(template).replace(markers, (_, index: string) =>
     reference(fold.variables[Number(index)]!.name),
   );
@@ -54,7 +56,7 @@ export function buildEnvironments(models: Models): EnvironmentsBuild {
     files[environmentFile(target)] = wrapper(template.project, target, fold.variables);
   const deployValues = suppliedValues(fold);
   const unlike = viewProblems(models, files, deployValues);
-  if (unlike.length > 0) return empty(withSettings(unlike, differing));
+  if (unlike.length > 0) return empty(withSettings(unlike, models, differing));
   return { files, deployValues, problems: [] };
 }
 
@@ -62,19 +64,27 @@ function empty(problems: EnvironmentsProblem[]): EnvironmentsBuild {
   return { files: {}, deployValues: [], problems: once(problems) };
 }
 
-/** Each structural problem names the settings that differ between the targets. */
-function withSettings(problems: EnvironmentsProblem[], differing: readonly TargetDifference[]) {
+/**
+ * Each structural problem with no fix of its own names the settings that differ
+ * between the targets, and is located at the first of them.
+ */
+function withSettings(
+  problems: EnvironmentsProblem[],
+  models: Models,
+  differing: readonly TargetDifference[],
+) {
   const settings = settingsThatDiffer(differing);
+  const at = firstSettingAt(models, differing);
   return problems.map((problem) =>
     problem.code === "ENVIRONMENTS_DIFFER" && !problem.hint
-      ? { ...problem, message: problem.message + settings }
+      ? { ...problem, message: problem.message + settings, ...at }
       : problem,
   );
 }
 
-/** Each table's file, for problems about one table. */
-function tableFiles(model: ResolvedModel): Record<string, string> {
-  return Object.fromEntries(model.tables.map((table) => [table.name, table.origin.file]));
+/** Each table by name, for problems about one table and the settings it comes from. */
+function tablesOf(model: ResolvedModel): Record<string, ResolvedTable> {
+  return Object.fromEntries(model.tables.map((table) => [table.name, table]));
 }
 
 /**
