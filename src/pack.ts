@@ -1,12 +1,14 @@
 // The pack: views in Azure Synapse serverless SQL over files and tables other
 // packs land or store, and transforms as views.
 import type { Pack, ResolvedModel } from "@ingestron/definitions";
-import { build, hasView } from "./build.js";
+import { build, statementText } from "./build.js";
+import { buildEnvironments } from "./fold.js";
+import { hasView, plan } from "./plan.js";
 import { contract } from "./contract.js";
 import { request } from "./request.js";
 import { synapseServe, synapseSql, synapseView } from "./methods.js";
 import { synapseTypes } from "./types.js";
-import { canonical } from "./locations.js";
+import { canonical, viewingStep } from "./locations.js";
 
 /**
  * The Synapse serverless SQL pack.
@@ -14,7 +16,7 @@ import { canonical } from "./locations.js";
  */
 export const synapse: Pack = {
   id: "synapse",
-  version: 1,
+  version: 2,
   defaults: {
     naming: {
       catalog: "{{ project }}_{{ environment }}",
@@ -34,7 +36,12 @@ export const synapse: Pack = {
     "synapse-serve": synapseServe,
   },
   build,
-  check: (model) => [...transformInputs(model), ...dataSourceLocations(model)],
+  buildEnvironments,
+  check: (model) => [
+    ...transformInputs(model),
+    ...dataSourceLocations(model),
+    ...variableLookalikes(model),
+  ],
   request,
   contract,
 };
@@ -62,8 +69,8 @@ function transformInputs(model: ResolvedModel): string[] {
 function dataSourceLocations(model: ResolvedModel): string[] {
   const seen = new Map<string, Set<string>>();
   for (const table of model.tables) {
-    const step = table.serve?.method === "synapse-serve" ? table.serve : table.store;
-    if (!step || !/^synapse-(view|serve)$/.test(step.method)) continue;
+    const step = viewingStep(table);
+    if (!step) continue;
     const name = String(step.settings.data_source);
     const locations = seen.get(name) ?? new Set<string>();
     locations.add(canonical(String(step.settings.data_source_location)).replace(/\/+$/, ""));
@@ -74,5 +81,26 @@ function dataSourceLocations(model: ResolvedModel): string[] {
     .map(
       ([name, locations]) =>
         `the data source \`${name}\` is at two locations, ${[...locations].join(" and ")}; give each location its own data_source name`,
+    );
+}
+
+/**
+ * sqlcmd reads `$(` anywhere in views.sql, in strings too, as the start of a variable, so
+ * no view may hold it.
+ */
+function variableLookalikes(model: ResolvedModel): string[] {
+  if (!model.tables.some(hasView)) return [];
+  let statements;
+  try {
+    statements = plan(model).statements;
+  } catch {
+    // A view over files outside its data source: the method's check reports it.
+    return [];
+  }
+  return statements
+    .filter((statement) => statement.kind === "view" && statementText(statement).includes("$("))
+    .map(
+      (statement) =>
+        `the view of table "${(statement as { table: string }).table}" would hold "$(", which sqlcmd reads as the start of a variable such as $(database), even in a string; leave "$(" out of its names, path, columns and code`,
     );
 }
