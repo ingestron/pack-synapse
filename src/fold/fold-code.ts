@@ -1,7 +1,7 @@
 // A transform's code in every target: the same text where the targets' code is
 // the same, and a variable for each run of tokens that differs (spec section 8.1).
 import type { EnvironmentsProblem } from "@ingestron/definitions";
-import type { CodePart, TransformPlan, ViewReference } from "./plan.js";
+import type { CodePart, TransformPlan, ViewReference } from "../plan/plan.js";
 import { placeText, type Fold } from "./fold-places.js";
 import { deployParts, deployProblem, differ, listOf } from "./fold-problems.js";
 import { stretches, tokens, type Stretch } from "./token-diff.js";

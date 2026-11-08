@@ -2,7 +2,7 @@
 // views.sql takes with :setvar and includes it with :r, and what sqlcmd makes of
 // views.sql for one environment (spec sections 8.3 and 9).
 import type { Variable } from "./fold-places.js";
-import { viewsFile } from "./build.js";
+import { viewsFile } from "../output/build.js";
 
 /** The wrapper's path for an environment. */
 export const environmentFile = (target: string): string => `environments/${target}.sql`;

@@ -2,7 +2,7 @@
 // given, but Azure DevOps upper-cases pipeline variables, so the pack warns with a notice.
 import { environmentsDiagnostics } from "@ingestron/definitions";
 import { describe, expect, it } from "vitest";
-import { erpEnvironments, erpProject, fold, foldFailures, resolveAll } from "./fold-helpers.js";
+import { erpEnvironments, erpProject, fold, foldFailures, resolveAll } from "../fold-helpers.js";
 
 const environments = ["dev", "test", "prod"];
 

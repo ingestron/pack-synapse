@@ -3,8 +3,8 @@
 // T-SQL. Building one environment writes the plan as it is; building every
 // environment together compares the targets' plans value by value.
 import type { Column, ResolvedModel, ResolvedTable, Step } from "@ingestron/definitions";
-import { relativePath, sourceStep } from "./locations.js";
-import type { FilesInput } from "./sql.js";
+import { relativePath, sourceStep } from "../sql/locations.js";
+import type { FilesInput } from "../sql/sql.js";
 
 /** Everything views.sql holds, in order. */
 export interface ViewsPlan {

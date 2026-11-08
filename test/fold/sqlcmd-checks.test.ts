@@ -1,8 +1,8 @@
 // What sqlcmd would read in views.sql as something other than T-SQL is refused in
 // every environment: a line that is one of its commands, and `$(`.
 import { describe, expect, it } from "vitest";
-import { erpEnvironments } from "./fold-helpers.js";
-import { base, problems } from "./project.js";
+import { erpEnvironments } from "../fold-helpers.js";
+import { base, problems } from "../project.js";
 
 const orders = erpEnvironments()["orders.yaml"]!;
 

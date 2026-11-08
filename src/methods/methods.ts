@@ -1,8 +1,8 @@
 // The pack's methods: a view as a table's store, a transform in T-SQL, and a
 // view over a table another pack stores.
 import type { Method, ResolvedTable } from "@ingestron/definitions";
-import { filesProblems } from "./locations.js";
-import { tableReference } from "./plan.js";
+import { filesProblems } from "../sql/locations.js";
+import { tableReference } from "../plan/plan.js";
 
 /** Where the views read files: the external data source the platform team creates. */
 const placement = { platform: ["data_source", "data_source_location"], standard: ["csv"] };

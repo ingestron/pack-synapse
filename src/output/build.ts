@@ -8,8 +8,8 @@ import {
   type Statement,
   type TransformPlan,
   type ViewsPlan,
-} from "./plan.js";
-import { filesQuery, quote, viewStatement } from "./sql.js";
+} from "../plan/plan.js";
+import { filesQuery, quote, viewStatement } from "../sql/sql.js";
 
 /** The script's path in the pack's output folder. */
 export const viewsFile = "views.sql";

@@ -1,7 +1,7 @@
 // The token diff a transform's code is folded with: the tokens common to every
 // target stay, and each stretch between them that differs is one value.
 import { describe, expect, it } from "vitest";
-import { stretches, tokens } from "../src/token-diff.js";
+import { stretches, tokens } from "../../src/fold/token-diff.js";
 
 /** Each stretch as each target's text, the ones that differ marked. */
 function texts(...versions: string[]) {

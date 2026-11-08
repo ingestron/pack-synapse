@@ -1,8 +1,8 @@
 // What the pack does with contracts, and what it asks of the platform team.
 import type { ResolvedModel } from "@ingestron/definitions";
 import { describe, expect, it } from "vitest";
-import { synapse } from "../src/index.js";
-import { base, generate } from "./project.js";
+import { synapse } from "../../src/index.js";
+import { base, generate } from "../project.js";
 
 describe("contract", () => {
   it("types the view's columns from the contract and checks no rows", () => {

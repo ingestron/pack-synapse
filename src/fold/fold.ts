@@ -10,7 +10,7 @@ import {
   type SuppliedValue,
   type TargetDifference,
 } from "@ingestron/definitions";
-import { build, viewsFile, writeViews } from "./build.js";
+import { build, viewsFile, writeViews } from "../output/build.js";
 import { caseNotices } from "./fold-notices.js";
 import { foldPlans, type Plans } from "./fold-plan.js";
 import { markers, type Fold, type Variable } from "./fold-places.js";
@@ -24,8 +24,8 @@ import {
   settingsThatDiffer,
   type Models,
 } from "./fold-problems.js";
-import { hasView, plan } from "./plan.js";
-import { holdsDeployText, relativePath, sourceStep, viewingStep } from "./locations.js";
+import { hasView, plan } from "../plan/plan.js";
+import { holdsDeployText, relativePath, sourceStep, viewingStep } from "../sql/locations.js";
 import { environmentFile, reference, substituted, wrapper } from "./sqlcmd.js";
 
 /**
