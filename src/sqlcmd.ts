@@ -5,10 +5,10 @@ import type { Variable } from "./fold-places.js";
 import { viewsFile } from "./build.js";
 
 /** The wrapper's path for an environment. */
-export const environmentFile = (target: string) => `environments/${target}.sql`;
+export const environmentFile = (target: string): string => `environments/${target}.sql`;
 
 /** A reference to a variable in views.sql. */
-export const reference = (name: string) => `$(${name})`;
+export const reference = (name: string): string => `$(${name})`;
 
 /**
  * `:setvar name "value"`, with each `"` in the value doubled, as sqlcmd reads a
