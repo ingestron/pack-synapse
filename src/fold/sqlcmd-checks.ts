@@ -2,8 +2,8 @@
 // starts a variable anywhere, in strings too, and a line that is one of its commands
 // (spec section 5). Each is a pack check problem, in every environment.
 import type { ResolvedModel } from "@ingestron/definitions";
-import { codeOf, statementText } from "../output/build.js";
-import { hasView, plan, type Statement } from "../plan/plan.js";
+import { codeOf, statementText } from "../output/index.js";
+import { hasView, plan, type Statement } from "../plan/index.js";
 
 /**
  * Lines sqlcmd reads as its own commands, with or without white space before them,

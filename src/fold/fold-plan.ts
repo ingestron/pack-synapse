@@ -4,10 +4,10 @@ import { isDeepStrictEqual } from "node:util";
 import type { EnvironmentsProblem, ResolvedTable, Step } from "@ingestron/definitions";
 import { foldTransform, type Owner } from "./fold-code.js";
 import { placeText, type Fold, type Kind, type Setting } from "./fold-places.js";
-import { sourceStep, viewingStep } from "../sql/locations.js";
+import { sourceStep, viewingStep } from "../sql/index.js";
 import { differ, inEach, listOf } from "./fold-problems.js";
-import type { FilesPlan, Statement, ViewPlan, ViewsPlan } from "../plan/plan.js";
-import { quote } from "../sql/sql.js";
+import type { FilesPlan, Statement, ViewPlan, ViewsPlan } from "../plan/index.js";
+import { quote } from "../sql/index.js";
 
 /** Each target's plan, by target name. */
 export type Plans = Readonly<Record<string, ViewsPlan>>;

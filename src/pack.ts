@@ -1,15 +1,15 @@
 // The pack: views in Azure Synapse serverless SQL over files and tables other
 // packs land or store, and transforms as views.
 import type { Pack, ResolvedModel } from "@ingestron/definitions";
-import { build } from "./output/build.js";
-import { buildEnvironments } from "./fold/fold.js";
-import { hasView } from "./plan/plan.js";
-import { sqlcmdProblems } from "./fold/sqlcmd-checks.js";
-import { contract } from "./methods/contract.js";
-import { request } from "./methods/request.js";
-import { synapseServe, synapseSql, synapseView } from "./methods/methods.js";
-import { synapseTypes } from "./sql/types.js";
-import { canonical, viewingStep } from "./sql/locations.js";
+import { build } from "./output/index.js";
+import { buildEnvironments } from "./fold/index.js";
+import { hasView } from "./plan/index.js";
+import { sqlcmdProblems } from "./fold/index.js";
+import { contract } from "./methods/index.js";
+import { request } from "./methods/index.js";
+import { synapseServe, synapseSql, synapseView } from "./methods/index.js";
+import { synapseTypes } from "./sql/index.js";
+import { canonical, viewingStep } from "./sql/index.js";
 
 /**
  * The Synapse serverless SQL pack.
