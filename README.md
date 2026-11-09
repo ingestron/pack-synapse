@@ -266,6 +266,20 @@ source share one, such as the storage account in
 `abfss://landing@${envvar:ACCOUNT}.dfs.core.windows.net`, `views.sql` needs no
 variable for it.
 
+## What changed in 2.2
+
+The pack declares what it does with the standard's intent: what a table keeps
+and how its data is loaded, written once for every engine. Views keep nothing,
+so the pack applies none of it, and the files are the same as with 2.1.
+
+- No setting moved, so there is no `SETTING_MOVED` warning.
+- A table that a view keeps and whose intent asks for something a view cannot
+  do, such as `history: latest` or `audit: loaded_at`, gets the warning
+  `NOT_APPLIED`, with the reason. What the landing pack does, such as the files
+  it lands, is not reported.
+- The Platform has a `synapse` section, which takes no fields.
+- Needs `@ingestron/definitions` 1.13 or later.
+
 ## What changed in 2.0
 
 - One `views.sql` in `build/synapse/`, with `environments/<environment>.sql`
