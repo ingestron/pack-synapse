@@ -86,6 +86,7 @@ describe("the pack's intent coverage", () => {
       ["operations.retries", undefined],
       ["operations.alerts", "slow"],
       ["operations.trigger", "schedule"],
+      ["operations.schedule", "flow"],
     ] as const)
       expect(intentUseOf(synapse, path, value), path).toEqual({
         use: "not-applicable",
