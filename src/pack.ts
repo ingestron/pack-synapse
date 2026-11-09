@@ -14,6 +14,7 @@ import { canonical, viewingStep } from "./sql/index.js";
 /**
  * The Synapse serverless SQL pack.
  * @example loadDefinitions("definitions", { packs: [synapse, adf] })
+ * @public
  */
 export const synapse: Pack = {
   id: "synapse",
