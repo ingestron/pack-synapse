@@ -391,3 +391,31 @@ specification, section 2.1).
 - **sqlcmd commands** (`test/sqlcmd-checks.test.ts`): each command line in
   section 5 is refused in a transform's code, indented ones included, and
   lines that only look like commands are not.
+
+## Intent
+
+The pack declares what it does with each intent path and value (section 11 of the
+definitions specification) in `intent`, and `intentCoverageGaps` is empty. Synapse
+serverless builds views, which keep nothing and run nothing, so the pack applies no
+intent. It uses no platform feature, so there is no release status to record.
+
+| Intent                                                                                                   | Coverage         | Reason                                                    |
+| -------------------------------------------------------------------------------------------------------- | ---------------- | --------------------------------------------------------- |
+| `history`, `sequence`, `storage`, `retention.time_travel`, `retention.log`, `rescued`, `quality.results` | `not-applicable` | Views keep nothing; they read files or a query each time. |
+| `load.deletes`                                                                                           | `not-applicable` | Views keep nothing; they read files or a query each time. |
+| `load` (the rest), `retention.landed_files`                                                              | `elsewhere`      | Another pack lands the files.                             |
+| `audit: run_id`, `window_start`, `window_end`, `source_object`, `source_connection`                      | `elsewhere`      | Another pack lands the files.                             |
+| `audit: loaded_at`, `row_hash`, `source_file`, `source_modified_at`                                      | `not-applicable` | A view adds no columns of its own.                        |
+| `operations`                                                                                             | `not-applicable` | Synapse serverless runs no jobs.                          |
+
+The core judges `history`, `sequence`, `storage.*`, `retention.time_travel`,
+`retention.log`, `rescued` and `quality.results` at the store step, which is
+`synapse-view` here, so a table kept by it that asks for one gets a `NOT_APPLIED`
+diagnostic with the reason above. The view is the step that writes the table and the
+step that reads the files, so it is also where `loaded_at`, `row_hash`,
+`source_file` and `source_modified_at` are judged; none of them is added. The ingest
+step's audit values are the landing pack's to judge, and an entry that is missing or
+`elsewhere` gives no diagnostic. `operations` is judged by the first pack in the
+standard that declares an `operations` path used; Synapse never is.
+
+The Platform's `synapse` section is empty: `platformSection` has no properties.

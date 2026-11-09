@@ -6,7 +6,7 @@ import { buildEnvironments } from "./fold/index.js";
 import { hasView } from "./plan/index.js";
 import { sqlcmdProblems } from "./fold/index.js";
 import { contract } from "./methods/index.js";
-import { request } from "./methods/index.js";
+import { intent, request } from "./methods/index.js";
 import { synapseServe, synapseSql, synapseView } from "./methods/index.js";
 import { synapseTypes } from "./sql/index.js";
 import { canonical, viewingStep } from "./sql/index.js";
@@ -46,6 +46,8 @@ export const synapse: Pack = {
   ],
   request,
   contract,
+  platformSection: { type: "object", additionalProperties: false, properties: {} },
+  intent,
 };
 
 /** A T-SQL transform is kept by synapse-view and reads other tables' views. */
