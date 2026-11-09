@@ -8,9 +8,9 @@ import {
   foldFailures,
   resolveAll,
   totals,
-} from "./fold-helpers.js";
-import { synapse } from "../src/index.js";
-import { base } from "./project.js";
+} from "../fold-helpers.js";
+import { synapse } from "../../src/index.js";
+import { base } from "../project.js";
 
 const models = resolveAll(erpEnvironments(), ["dev", "test", "prod"]);
 const built = fold(models);

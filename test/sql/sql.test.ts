@@ -1,7 +1,7 @@
 // The T-SQL of a view: quoted names, typed column lists, OPENROWSET and the view itself.
 import type { Column } from "@ingestron/definitions";
 import { describe, expect, it } from "vitest";
-import { columnList, filesQuery, quote, viewStatement } from "../src/sql.js";
+import { columnList, filesQuery, quote, viewStatement } from "../../src/sql/sql.js";
 
 const columns: Column[] = [
   { name: "id", logicalType: "integer", nullable: false },

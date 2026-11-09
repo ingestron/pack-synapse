@@ -2,7 +2,7 @@
 // more than values, and values that sqlcmd cannot put into views.sql as they are.
 import { compareTargets } from "@ingestron/definitions";
 import { describe, expect, it } from "vitest";
-import { firstSettingAt } from "../src/fold-problems.js";
+import { firstSettingAt } from "../src/fold/fold-problems.js";
 import { erpEnvironments, erpProject, fold, resolveAll, totals } from "./fold-helpers.js";
 import { base } from "./project.js";
 
