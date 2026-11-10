@@ -1,9 +1,13 @@
 // Windows zone names for the IANA names the model gives (spec/behaviour.md, "Quality and
 // cleansing", "Time zones"), and what a zone Windows has no name for does to a view.
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { memoryFiles } from "@ingestron/config";
 import { intentUseOf, resolveDefinitions, type ResolvedModel } from "@ingestron/definitions";
 import { describe, expect, it } from "vitest";
 import { synapse } from "../../src/index.js";
+import { noWindowsZone } from "../../src/methods/quality-intent.js";
 import { windowsZone, windowsZones } from "../../src/zones/index.js";
 import { crm, crmFiles, viewOf } from "../quality-project.js";
 import { landing, tables } from "../stub-packs.js";
@@ -38,6 +42,15 @@ describe("windowsZone", () => {
       "https://raw.githubusercontent.com/unicode-org/cldr/release-49/common/supplemental/windowsZones.xml",
       "https://raw.githubusercontent.com/unicode-org/cldr/release-49/common/bcp47/timezone.xml",
     ]);
+  });
+
+  it("has a name for every zone the definitions accept, except those the pack lists", () => {
+    // The definitions package ships its zone list in dist/data; a regenerated list or table
+    // must not leave a zone out silently.
+    const index = fileURLToPath(import.meta.resolve("@ingestron/definitions"));
+    const file = join(dirname(index), "data", "zones.json");
+    const accepted = (JSON.parse(readFileSync(file, "utf8")) as { zones: string[] }).zones;
+    expect(accepted.filter((zone) => windowsZone(zone) === undefined)).toEqual(noWindowsZone);
   });
 });
 

@@ -110,22 +110,29 @@ describe("table checks in checks.sql", () => {
     ).toBe(true);
   });
 
-  it("says a pattern table check is not applied, when building every environment", () => {
+  it("leaves a pattern table check to the definitions, which say it is not applied", () => {
     const files = { ...base, "standard.yaml": standard("[check]"), "orders.yaml": contract };
-    const model = resolveDefinitions(memoryFiles(files), {
+    const resolved = resolveDefinitions(memoryFiles(files), {
       packs: [landing, synapse, tables],
       environment: "dev",
       deployTime: true,
       environmentsTogether: true,
-    }).model as ResolvedModel;
-    expect(synapse.buildEnvironments!({ dev: model }).problems).toContainEqual({
-      code: "PACK_NOTICE",
-      severity: "warning",
-      message:
-        'The table check "total_invalidvalues" isn\'t applied on Synapse: serverless T-SQL has no regular expressions.',
-      hint: "Check the pattern in a layer another engine keeps, or write the check as a sql table check.",
-      file: "flow.yaml",
     });
+    const model = resolved.model as ResolvedModel;
+    expect(resolved.diagnostics).toContainEqual(
+      expect.objectContaining({
+        code: "NOT_APPLIED",
+        message:
+          "The pattern rule isn't applied on synapse: serverless T-SQL has no regular expressions.",
+        subject: { table: "orders", feature: "pattern" },
+      }),
+    );
+    expect(model.tables.find((table) => table.name === "orders")?.notApplied).toContainEqual({
+      feature: "pattern",
+      reason: "serverless T-SQL has no regular expressions.",
+    });
+    const problems = synapse.buildEnvironments!({ dev: model }).problems;
+    expect(problems.filter((problem) => problem.code === "PACK_NOTICE")).toEqual([]);
   });
 });
 

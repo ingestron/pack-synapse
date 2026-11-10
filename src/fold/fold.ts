@@ -11,7 +11,7 @@ import {
   type TargetDifference,
 } from "@ingestron/definitions";
 import { build, checksFile, viewsFile, writeChecks, writeViews } from "../output/index.js";
-import { caseNotices, qualityNotices } from "./fold-notices.js";
+import { caseNotices } from "./fold-notices.js";
 import { foldPlans, type Plans } from "./fold-plan.js";
 import { markers, type Fold, type Variable } from "./fold-places.js";
 import { nameVariables } from "./fold-names.js";
@@ -54,8 +54,7 @@ export function buildEnvironments(models: Models): EnvironmentsBuild {
   const deployValues = suppliedValues(fold);
   const unlike = viewProblems(models, files, deployValues);
   if (unlike.length > 0) return empty(withSettings(unlike, models, differing));
-  const notices = [...caseNotices(models, deployValues), ...qualityNotices(models[targets[0]!]!)];
-  return { files, deployValues, problems: notices };
+  return { files, deployValues, problems: caseNotices(models, deployValues) };
 }
 
 /** views.sql, and checks.sql when a view runs checks, with each marker as its variable. */

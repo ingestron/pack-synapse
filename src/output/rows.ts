@@ -1,6 +1,6 @@
 // A view's query as T-SQL (spec/behaviour.md, "The view"): its rows, cleansed and deduplicated,
-// then, when it has drop checks, only the rows that pass them. checks.sql counts the rows before
-// the drop checks.
+// then, when it has drop checks, only the rows that pass them. checks.sql counts row checks over
+// the rows before the drop checks, and table checks over the rows the view keeps.
 import type { CodePart, TransformPlan, ViewPlan } from "../plan/index.js";
 import { fileColumn, filesQuery, quote } from "../sql/index.js";
 

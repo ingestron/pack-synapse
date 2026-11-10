@@ -1,13 +1,6 @@
 // The notices a fold gives (spec/behaviour.md, section 10): things the people deploying
 // views.sql need to know that do not stop it being written.
-import type {
-  PackNotice,
-  ResolvedModel,
-  ResolvedTable,
-  SuppliedValue,
-} from "@ingestron/definitions";
-import { counts } from "../plan/index.js";
-import { appliesTableCheck } from "../sql/index.js";
+import type { PackNotice, SuppliedValue } from "@ingestron/definitions";
 import type { Models } from "./fold-problems.js";
 
 /**
@@ -30,32 +23,4 @@ export function caseNotices(models: Models, deployValues: readonly SuppliedValue
         ...(use && { file: use.file, ...(use.line !== undefined && { line: use.line }) }),
       };
     });
-}
-
-/**
- * A notice, in the words of `NOT_APPLIED`, for each table check that needs a regular expression.
- * The definitions package judges `quality.table-checks` for the pack as a whole, so it cannot say
- * this for one check.
- */
-export function qualityNotices(model: ResolvedModel): PackNotice[] {
-  return model.tables
-    .filter((table) => table.store?.method === "synapse-view")
-    .flatMap(patternNotices);
-}
-
-function notice(table: ResolvedTable, message: string, hint: string): PackNotice {
-  return { code: "PACK_NOTICE", severity: "warning", message, hint, file: table.origin.file };
-}
-
-function patternNotices(table: ResolvedTable): PackNotice[] {
-  if (!counts(table)) return [];
-  return table.contract.tableChecks
-    .filter((check) => !appliesTableCheck(check))
-    .map((check) =>
-      notice(
-        table,
-        `The table check "${check.name}" isn't applied on Synapse: serverless T-SQL has no regular expressions.`,
-        "Check the pattern in a layer another engine keeps, or write the check as a sql table check.",
-      ),
-    );
 }

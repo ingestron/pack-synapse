@@ -369,20 +369,13 @@ only when the step maps it with `env:`:
 `<UPPER>` is `NAME` in upper case. A value is reported once, however many
 environments hold it.
 
-The pack also gives a `PACK_NOTICE` for a table check the definitions package
-judges applied but the pack cannot apply (section "Quality and cleansing"). The
-definitions package judges `quality.table-checks` as a whole and cannot judge
-one table check, so the pack says it here, in the words of a `NOT_APPLIED`
-warning:
-
-| Code          | Message                                                                                                                                                                                               | Located at       |
-| ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------- |
-| `PACK_NOTICE` | `The table check "<name>" isn't applied on Synapse: serverless T-SQL has no regular expressions.`, hint `Check the pattern in a layer another engine keeps, or write the check as a sql table check.` | The table's file |
-
-It is given once for each table check, in the first environment's model. A
-zone Windows has no name for is not a notice: the pack lists it in its
-coverage, and the definitions package reports it (section "Quality and
-cleansing").
+The pack gives no notice for a table check it cannot apply: the definitions
+package judges a table check that counts values against a `pattern` as the
+`pattern` rule kind, which the pack declares `not-applicable`, so it is a
+`NOT_APPLIED` warning about the table (definitions specification, section
+11.7), and the passport says it is not enforced. Nor is a zone Windows has
+no name for a notice: the pack lists it in its coverage, and the definitions
+package reports it (section "Quality and cleansing").
 
 `<the place>` names the value: `the database of the views in layer <layer>`,
 `the schema of view [<schema>].[<view>]`, `the name of view …`,
@@ -718,7 +711,7 @@ uses, in T-SQL:
 | `nullValues`                   | `COUNT_BIG(CASE WHEN <c> IS NULL THEN 1 END)`                                                                   |
 | `missingValues`                | `COUNT_BIG(CASE WHEN <c> IS NULL OR <c> IN (<v>, …) THEN 1 END)`; without a list, as `nullValues`               |
 | `invalidValues`, `validValues` | `COUNT_BIG(CASE WHEN <c> IS NOT NULL AND NOT (<c> IN (<v>, …)) THEN 1 END)`                                     |
-| `invalidValues`, `pattern`     | not applied: serverless T-SQL has no regular expressions (a `PACK_NOTICE`, section 10)                          |
+| `invalidValues`, `pattern`     | not applied: serverless T-SQL has no regular expressions (`NOT_APPLIED` for `pattern`)                          |
 | `sql`                          | the rule's query, with `${object}` replaced by the view's name, `[<schema>].[<view>]`                           |
 
 `COUNT_BIG(DISTINCT …)` leaves nulls out. Spark's `count(DISTINCT a, b)`
@@ -743,9 +736,11 @@ rows a `drop` check leaves out of the view; its table checks count the rows the
 view keeps. It is, line by line:
 
 1. comments naming the project, and no environment, saying not to edit it,
-   that it counts each check's failing rows and returns one row per check,
-   then raises an error for the first `fail` check that fails, and that it
-   stops nothing unless it runs after each landing;
+   that it counts each row check's failing rows in the files the views read,
+   the rows `drop` checks leave out included, and each table check over the
+   rows the view keeps, returns one row per check, then raises an error for
+   the first `fail` check that fails, and that it stops nothing unless it runs
+   after each landing;
 2. for each table that runs at least one check, in the model's order, `t`
    counting from 1:
    - `USE [<database>];` when the table's database is not the one before;
