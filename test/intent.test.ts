@@ -20,11 +20,41 @@ describe("the pack's intent coverage", () => {
     expect(intentCoverageGaps(synapse)).toEqual([]);
   });
 
-  it("has an empty Platform section", () => {
-    expect(synapse.platformSection).toEqual({
-      type: "object",
-      additionalProperties: false,
-      properties: {},
+  it("has one switch in its Platform section, manage.grants", () => {
+    const section = synapse.platformSection as {
+      properties: { manage: { additionalProperties: boolean; properties: object } };
+    };
+    expect(Object.keys(section.properties)).toEqual(["manage"]);
+    expect(section.properties.manage.additionalProperties).toBe(false);
+    expect(section.properties.manage.properties).toEqual({
+      grants: expect.objectContaining({ type: "boolean", examples: [true] }),
+    });
+  });
+
+  it("declares the grants capability", () => {
+    expect(synapse.capabilities?.map((capability) => capability.id)).toEqual(["grants"]);
+  });
+
+  it("grants read access, and says what it cannot apply on a view", () => {
+    expect(intentUseOf(synapse, "access.grants", "read")).toMatchObject({
+      use: "used",
+      status: { level: "ga", checked: "2026-11-11" },
+    });
+    expect(intentUseOf(synapse, "access.exact", "true")).toMatchObject({ use: "used" });
+    expect(intentUseOf(synapse, "access.grants", "write")).toEqual({
+      use: "not-applicable",
+      reason: "views are read-only.",
+    });
+    for (const value of ["null", "hash", "redact", "function"])
+      expect(intentUseOf(synapse, "access.masks", value), value).toEqual({
+        use: "not-applicable",
+        reason:
+          "Synapse serverless has no data masking, and readers of views over files can read the files directly.",
+      });
+    expect(intentUseOf(synapse, "access.filters", "true")).toEqual({
+      use: "not-applicable",
+      reason:
+        "Synapse serverless has no row-level security, and readers of views over files can read the files directly.",
     });
   });
 

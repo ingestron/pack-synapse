@@ -5,6 +5,7 @@
 import type { Column, ResolvedModel, ResolvedTable, Step } from "@ingestron/definitions";
 import { quote, relativePath, sourceStep } from "../sql/index.js";
 import type { FilesInput } from "../sql/index.js";
+import { viewAccess, type ViewAccess } from "./access.js";
 import {
   cleansedColumns,
   fileColumnOf,
@@ -40,6 +41,8 @@ export interface ViewPlan {
   query: FilesPlan | TransformPlan;
   /** What a view synapse-view keeps cleanses, deduplicates and checks, beyond reading. */
   quality?: QualityPlan;
+  /** Who views.sql grants SELECT on the view, with `synapse.manage.grants` on. */
+  access?: ViewAccess;
 }
 
 /** A view over files under a data source. */
@@ -101,7 +104,13 @@ function viewOf(model: ResolvedModel, table: ResolvedTable): ViewPlan | undefine
   if (table.serve?.method === "synapse-serve")
     return { kind: "view", ...names, query: filesPlan(table, table.serve, { resolvedTypes }) };
   if (table.store?.method !== "synapse-view") return undefined;
-  return { kind: "view", ...names, ...keptView(model, table, resolvedTypes) };
+  const access = viewAccess(model, table);
+  return {
+    kind: "view",
+    ...names,
+    ...keptView(model, table, resolvedTypes),
+    ...(access && { access }),
+  };
 }
 
 /** The query of a view synapse-view keeps, and what it cleanses, deduplicates and checks. */

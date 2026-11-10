@@ -1,7 +1,8 @@
 // What the pack does with each intent path and value (definitions specification, section 11).
 // Synapse serverless builds views, which keep and run nothing, so it applies none of what a store
-// or a job would; it applies checks and cleansing in its views and checks.sql.
+// or a job would; it applies checks and cleansing in its views and checks.sql, and grants on them.
 import { type IntentUse } from "@ingestron/definitions";
+import { accessIntent } from "./access.js";
 import { qualityIntent } from "./quality-intent.js";
 
 const keepsNothing: IntentUse = {
@@ -39,4 +40,5 @@ export const intent: Record<string, IntentUse> = {
   ),
   operations: { use: "not-applicable", reason: "Synapse serverless runs no jobs." },
   ...qualityIntent,
+  ...accessIntent,
 };

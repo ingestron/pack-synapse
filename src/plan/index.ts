@@ -1,4 +1,5 @@
 // The plan module: what the rest of the package uses.
+export { grantsOn, viewAccess, type ViewAccess, type ViewGrant } from "./access.js";
 export {
   hasView,
   plan,

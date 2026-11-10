@@ -2,6 +2,7 @@
 import type { ResolvedModel } from "@ingestron/definitions";
 import { describe, expect, it } from "vitest";
 import { synapse } from "../../src/index.js";
+import { accessFiles } from "../access-project.js";
 import { base, generate } from "../project.js";
 
 describe("contract", () => {
@@ -50,5 +51,55 @@ describe("request", () => {
       "source: erp\nstore: { uses: keep }\n",
     );
     expect(synapse.request!(generate({ "flow.yaml": flow }).model as ResolvedModel)).toEqual([]);
+  });
+});
+
+describe("request with grants", () => {
+  const sections = (files: Record<string, string>) =>
+    synapse.request!(generate(files).model as ResolvedModel);
+  const user = (principal: string, create: string) =>
+    `${principal}: in \`erp_dev\`, create it as a database user from the external provider (${create}), then give it REFERENCES on the database scoped credential \`landing_identity\` and ADMINISTER DATABASE BULK OPERATIONS, which views over files need. views.sql grants it SELECT on its views. These rights also let it read every file under \`abfss://landing@acct.dfs.core.windows.net\` directly, not only through the views.`;
+
+  it("names each principal the views are granted to, in place of the report users line", () => {
+    expect(sections(accessFiles()).find((section) => section.title === "Report users")).toEqual({
+      title: "Report users",
+      lines: [
+        user(
+          "`marketing-analysts-dev`",
+          "`CREATE USER [marketing-analysts-dev] FROM EXTERNAL PROVIDER`",
+        ),
+        user("`etl-writers`", "`CREATE USER [etl-writers] FROM EXTERNAL PROVIDER`"),
+        user("`ops]admins`", "`CREATE USER [ops]]admins] FROM EXTERNAL PROVIDER`"),
+      ],
+    });
+  });
+
+  it("writes a principal holding a backtick as a code span of two backticks", () => {
+    const files = accessFiles({
+      roles: ["  - { role: auditors }"],
+      principals: "principals: { auditors: 'team`s analysts' }",
+    });
+    expect(sections(files).at(-1)!.lines).toEqual([
+      user("`` team`s analysts ``", "`` CREATE USER [team`s analysts] FROM EXTERNAL PROVIDER ``"),
+    ]);
+  });
+
+  it("lists the views exact grants reach, saying what they remove and keep", () => {
+    expect(sections(accessFiles({ grants: "exact" })).at(-1)).toEqual({
+      title: "Exact grants",
+      intro:
+        "Exact grants are on. Each time views.sql runs, it removes every permission granted directly on these views to anyone their contracts and layers don't name, and every permission other than SELECT to those they do. It keeps ownership, permissions on schemas and databases, denials, and permissions given WITH GRANT OPTION. Before turning this on, move any access given by hand into the contracts.",
+      lines: ["`[bronze].[orders]` in `erp_dev`"],
+    });
+  });
+
+  it("asks for what it asked before when the switch is off", () => {
+    const off = sections(accessFiles({ manage: false, grants: "exact" }));
+    expect(off.map((section) => section.title)).toEqual([
+      "Synapse serverless database",
+      "External data source",
+      "Report users",
+    ]);
+    expect(off[2]!.lines[0]).toMatch(/^In `erp_dev`, give each report user SELECT on the schema/);
   });
 });

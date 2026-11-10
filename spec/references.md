@@ -290,3 +290,90 @@ Windows zone names come from the Unicode CLDR, release 49 (published
   `Asia/Calcutta Asia/Kolkata`.
 - The CLDR [release 49 tag](https://github.com/unicode-org/cldr/releases/tag/release-49),
   the latest release on 2026-11-10.
+
+## Access
+
+Accessed 2026-11-11. Each Microsoft Learn page is pinned by its `ms.date` and
+the source commit its metadata reports (`git_commit_id`). The pack cannot run
+T-SQL against Synapse in its tests (no workspace, no cloud), so each form is
+checked against these pages, and the tests check the text the pack writes.
+
+- [T-SQL feature differences in Synapse SQL](https://learn.microsoft.com/en-us/azure/synapse-analytics/sql/overview-features)
+  (ms.date 2026-10-05, commit `14120b58fa737dafeda3680f8cdd66a48ac9becc`):
+  serverless SQL pools support database users, and GRANT, DENY and REVOKE on
+  schemas and objects; they have no row-level security and no data masking,
+  for which the page suggests wrapper views; they support every string
+  function, every built-in aggregate and every control-of-flow statement; the
+  cursor type and table variables are not supported. So `access.masks` and
+  `access.filters` are `not-applicable`, and exact grants use no cursor.
+- [System views supported in Synapse SQL](https://learn.microsoft.com/en-us/azure/synapse-analytics/sql/reference-tsql-system-views)
+  (ms.date 2020-04-15, updated 2026-05-03, commit
+  `6a58509277011b7b5cfe0ee0ed75f162d88af843`): "Synapse serverless SQL pool
+  supports SQL Server catalog views only", and the list of those views
+  includes `sys.database_permissions`, `sys.database_principals`,
+  `sys.objects` and `sys.schemas`.
+- [sys.database_permissions](https://learn.microsoft.com/en-us/sql/relational-databases/system-catalog-views/sys-database-permissions-transact-sql)
+  (ms.date 2026-05-26, commit `cf9e6fbc58f7b72c5f278a42796b74394ad059e4`;
+  applies to Azure Synapse Analytics): one row per permission; `class` 1 is an
+  object or column, `major_id` the object's id, `minor_id` 0 the object itself
+  and otherwise a column; `state` `D` deny, `R` revoke, `G` grant, `W` grant
+  with grant option; `permission_name`; `grantee_principal_id` joins
+  `sys.database_principals`; example C finds the permissions on one object by
+  joining `sys.objects` and `sys.schemas` by name. The permissions of fixed
+  database roles are not rows, and neither is ownership.
+- [GRANT Object Permissions](https://learn.microsoft.com/en-us/sql/t-sql/statements/grant-object-permissions-transact-sql)
+  (ms.date 2025-04-09, commit `a52ca41720ddecda8407b735a031a8559e75bf8c`;
+  applies to Azure Synapse Analytics): `GRANT SELECT ON OBJECT::schema.view TO
+principal`, for views too; the grantor needs the permission with GRANT
+  OPTION or one that implies it, such as CONTROL.
+- [REVOKE](https://learn.microsoft.com/en-us/sql/t-sql/statements/revoke-transact-sql)
+  (ms.date 2017-07-26, commit `cf9e6fbc58f7b72c5f278a42796b74394ad059e4`;
+  applies to Azure Synapse Analytics): the syntax for Azure Synapse Analytics
+  is `REVOKE <permission> ON [OBJECT ::] securable FROM principal [CASCADE]`;
+  revoking a permission granted WITH GRANT OPTION fails without CASCADE, so
+  exact grants keep those; principals with CONTROL on a securable, and object
+  owners, can revoke on it. The page on
+  [REVOKE Object Permissions](https://learn.microsoft.com/en-us/sql/t-sql/statements/revoke-object-permissions-transact-sql)
+  (ms.date 2017-08-10, commit `3788e363569c9a5af042c9b4f688384852d2d144`)
+  lists only SQL Server and Azure SQL Managed Instance under "Applies to", so
+  the pack writes only the form the general page gives for Azure Synapse
+  Analytics.
+- [EXECUTE](https://learn.microsoft.com/en-us/sql/t-sql/language-elements/execute-transact-sql)
+  (ms.date 2025-08-28, commit `a52ca41720ddecda8407b735a031a8559e75bf8c`):
+  the syntax for Azure Synapse Analytics includes `EXEC ( @string_variable )`.
+- [STRING_AGG](https://learn.microsoft.com/en-us/sql/t-sql/functions/string-agg-transact-sql)
+  (ms.date 2025-07-16, commit `a52ca41720ddecda8407b735a031a8559e75bf8c`;
+  applies to Azure Synapse Analytics): an `NVARCHAR(MAX)` input gives
+  `NVARCHAR(MAX)`; null values are left out.
+- [COLLATE](https://learn.microsoft.com/en-us/sql/t-sql/statements/collations)
+  (ms.date 2025-03-03, commit `739c7b1c14a03b2bf4a07d463e6ff31433962f43`;
+  applies to Azure Synapse Analytics): `COLLATE database_default` casts an
+  expression to the current database's collation.
+- [QUOTENAME](https://learn.microsoft.com/en-us/sql/t-sql/functions/quotename-transact-sql)
+  (ms.date 2026-04-08, commit `5f220f578385645cd005eed84f5b6881817b1c81`;
+  applies to Azure Synapse Analytics): brackets by default, with `]` doubled;
+  the input is `sysname`, which a principal's name is.
+- [SQL authentication in Azure Synapse Analytics](https://learn.microsoft.com/en-us/azure/synapse-analytics/sql/sql-authentication)
+  (ms.date 2024-11-07, commit `6a58509277011b7b5cfe0ee0ed75f162d88af843`):
+  in a serverless database, `CREATE USER [mike@contoso.com] FROM EXTERNAL
+PROVIDER`; `CREATE USER` is not supported when the workspace has Microsoft
+  Entra-only authentication.
+- [Control storage account access for serverless SQL pool](https://learn.microsoft.com/en-us/azure/synapse-analytics/sql/develop-storage-files-storage-access-control)
+  (ms.date 2025-01-22, commit `6a58509277011b7b5cfe0ee0ed75f162d88af843`):
+  a database user who accesses storage needs REFERENCES on the credential,
+  and "can read the content of the files from the data source using external
+  table or OPENROWSET function that references the data source". So the
+  request says plainly that the rights a view over files needs reach the
+  files too.
+
+Checked locally on 2026-11-11, with synthetic users and no cloud access, on a
+local SQL Server engine (Azure SQL Edge 15.0.2000.1574), with the view over a
+`VALUES` table in place of `OPENROWSET`. The first form of the exact grants
+batch failed there with "Cannot resolve collation conflict for string_agg
+operation": `permission_name` is `Latin1_General_CI_AS_KS_WS` and a
+principal's `name` the database's collation, so both are now put in the
+database's collation. With grants to the view's own principals, `ALTER` to
+one of them, `SELECT` and `VIEW DEFINITION` to another user, `SELECT` on the
+schema, `SELECT` with grant option, a `DENY`, a column `SELECT` and a
+`SELECT` to a role, the batch revoked exactly the `ALTER`, the other user's
+two permissions and the role's `SELECT`; a second run revoked nothing.

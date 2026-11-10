@@ -78,6 +78,7 @@ function textsOf(statement: Statement): Text[] {
   const { query } = statement;
   const names = [
     ...within(statement.schema, statement.name, ...Object.values(query.cleansed ?? {})),
+    ...within(...(statement.access?.grants.map((grant) => grant.principal) ?? [])),
     ...qualityTexts(statement),
   ];
   if (query.kind === "transform")

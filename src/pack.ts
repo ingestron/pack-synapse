@@ -5,7 +5,7 @@ import { build } from "./output/index.js";
 import { buildEnvironments } from "./fold/index.js";
 import { hasView } from "./plan/index.js";
 import { sqlcmdProblems } from "./fold/index.js";
-import { contract } from "./methods/index.js";
+import { capabilities, contract, platformSection } from "./methods/index.js";
 import { intent, request } from "./methods/index.js";
 import { synapseServe, synapseSql, synapseView } from "./methods/index.js";
 import { synapseTypes } from "./sql/index.js";
@@ -46,7 +46,8 @@ export const synapse: Pack = {
   ],
   request,
   contract,
-  platformSection: { type: "object", additionalProperties: false, properties: {} },
+  platformSection,
+  capabilities,
   intent,
 };
 

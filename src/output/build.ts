@@ -2,7 +2,7 @@
 // keeps or serves, in the model's order (inputs first).
 import type { ResolvedModel } from "@ingestron/definitions";
 import { hasView, plan, type Statement, type ViewsPlan } from "../plan/index.js";
-import { quote, viewStatement } from "../sql/index.js";
+import { grantStatements, quote, revokeStatement, viewStatement } from "../sql/index.js";
 import { checksFile, writeChecks } from "./checks.js";
 import { viewQuery } from "./rows.js";
 
@@ -33,8 +33,19 @@ export function writeViews(views: ViewsPlan): string {
   return `${[header, ...views.statements.map(statementText)].join("\n\n")}\n`;
 }
 
-/** One statement of the script, ending with `GO`. */
+/** One statement of the script, ending with `GO`: a view is followed by its grants and revokes. */
 export function statementText(statement: Statement): string {
   if (statement.kind === "use") return `USE ${quote(statement.database)};\nGO`;
-  return viewStatement({ schema: statement.schema, table: statement.name }, viewQuery(statement));
+  const view = viewStatement(
+    { schema: statement.schema, table: statement.name },
+    viewQuery(statement),
+  );
+  const { access } = statement;
+  if (!access) return view;
+  const principals = access.grants.map((grant) => grant.principal);
+  return [
+    view,
+    ...(principals.length > 0 ? [grantStatements(statement, principals)] : []),
+    ...(access.exact ? [revokeStatement(statement, principals)] : []),
+  ].join("\n\n");
 }

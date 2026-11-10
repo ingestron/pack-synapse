@@ -26,4 +26,5 @@ export {
   unicode,
   type Count,
 } from "./table-checks.js";
+export { grantStatements, revokeStatement, type ViewName } from "./grants.js";
 export { synapseTypes } from "./types.js";
