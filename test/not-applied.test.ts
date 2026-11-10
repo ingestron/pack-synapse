@@ -33,15 +33,16 @@ describe("what Synapse does not apply", () => {
 });
 
 describe("bronze, which keeps its rows raw", () => {
-  it("says each rule is not applied there, and how to apply it", () => {
+  it("counts each rule there as warn, so none is not applied", () => {
     const { result } = crm();
-    const bronze = result.diagnostics.filter(
-      (item) =>
-        item.code === "NOT_APPLIED" &&
-        item.message ===
-          "The notNull rule isn't applied on synapse: it is applied only in a layer whose does lists check.",
-    );
+    expect(
+      result.diagnostics.filter(
+        (item) => item.code === "NOT_APPLIED" && item.message.includes("whose does lists check"),
+      ),
+    ).toEqual([]);
+    const bronze = result.model!.tables.filter((table) => table.layer === "bronze");
     expect(bronze.length).toBeGreaterThan(0);
-    expect(bronze[0]!.hint).toBe("Add `check` to the layer's `does` to apply it here.");
+    for (const table of bronze)
+      expect(new Set(table.expectations.map((item) => item.action))).toEqual(new Set(["warn"]));
   });
 });

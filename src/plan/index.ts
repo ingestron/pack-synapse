@@ -11,4 +11,5 @@ export {
   type ViewReference,
   type ViewsPlan,
 } from "./plan.js";
+export { counts } from "./quality.js";
 export type { CheckPlan, QualityPlan, RowCheckPlan, TableCheckPlan } from "./quality.js";

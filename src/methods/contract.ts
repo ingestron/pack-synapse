@@ -7,7 +7,7 @@ const used = (does: string): ContractUse => ({ use: "used", does });
 const notYet = (reason: string): ContractUse => ({ use: "not-yet", reason });
 /** Used as a whole: the definitions package makes checks of every field under it. */
 const checks = (does: string): ContractUse => ({ use: "used", whole: true, does });
-const where = "in a layer whose does lists check";
+const where = "in a layer whose does lists check, or is raw (each check counted as warn)";
 const object = "schema.*";
 const column = "schema.*.properties.*";
 

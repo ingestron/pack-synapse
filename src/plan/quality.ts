@@ -1,5 +1,6 @@
 // What a view cleanses, deduplicates and checks, as plain data (spec/behaviour.md, "Quality and
-// cleansing"): only for a table synapse-view keeps; checks only in a layer whose does lists check.
+// cleansing"): only for a table synapse-view keeps; checks only in a layer whose does lists check
+// or is raw, where every check is warn and only counted.
 import type {
   Column,
   Expectation,
@@ -56,6 +57,13 @@ export interface QualityPlan {
 const lists = (table: ResolvedTable, duty: LayerDuty) =>
   Array.isArray(table.does) && table.does.includes(duty);
 
+/**
+ * True when the pack checks the table: its layer's `does` lists `check`, or is `raw`, where
+ * every action is `warn`, so the view keeps every row and checks.sql only counts.
+ */
+export const counts = (table: ResolvedTable): boolean =>
+  table.does === "raw" || lists(table, "check");
+
 /** Each cleansed column's expression, by name, read from the column as `start` gives it. */
 export function cleansedColumns(
   table: ResolvedTable,
@@ -94,7 +102,7 @@ export function qualityPlan(
   types: Readonly<Record<string, string>>,
   extra: readonly Column[],
 ): QualityPlan | undefined {
-  const checking = lists(table, "check");
+  const checking = counts(table);
   const rows = (checking ? table.expectations : [])
     .filter(appliesRule)
     .map((expectation): RowCheckPlan => ({

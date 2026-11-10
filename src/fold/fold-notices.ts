@@ -6,6 +6,7 @@ import type {
   ResolvedTable,
   SuppliedValue,
 } from "@ingestron/definitions";
+import { counts } from "../plan/index.js";
 import { appliesTableCheck } from "../sql/index.js";
 import type { Models } from "./fold-problems.js";
 
@@ -47,7 +48,7 @@ function notice(table: ResolvedTable, message: string, hint: string): PackNotice
 }
 
 function patternNotices(table: ResolvedTable): PackNotice[] {
-  if (!Array.isArray(table.does) || !table.does.includes("check")) return [];
+  if (!counts(table)) return [];
   return table.contract.tableChecks
     .filter((check) => !appliesTableCheck(check))
     .map((check) =>

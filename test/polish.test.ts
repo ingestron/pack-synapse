@@ -129,7 +129,7 @@ describe("types and references", () => {
   it("checks required in a layer whose does lists check", () => {
     expect(synapse.contract?.["schema.*.properties.*.required"]).toEqual({
       use: "used",
-      does: "A not-null check with the standard's quality.required action, in a layer whose does lists check.",
+      does: "A not-null check with the standard's quality.required action, in a layer whose does lists check, or is raw (each check counted as warn).",
     });
   });
 

@@ -133,7 +133,7 @@ with `]` doubled; text literals double `'`.
 Columns and their types are used. `required`, `unique`, the limits in
 `logicalTypeOptions` and the quality rules become checks (definitions
 specification, section 6), which a table runs in a layer whose `does` lists
-`check` (section "Quality and cleansing"); the primary key is used to
+`check` or is `raw` (section "Quality and cleansing"); the primary key is used to
 deduplicate. Relationships and tags are not used yet; the other facts are
 documentation.
 
@@ -465,6 +465,10 @@ record the Microsoft Learn page they rest on, as generally available, checked
 | `cleanse.timezone`                                                                    | `used`, with `zonesNotApplied` | `AT TIME ZONE` with the zones' Windows names in the view's `SELECT`; each zone Windows has no name for is listed, with its reason. |
 | `deduplicate`                                                                         | `used`                         | A `ROW_NUMBER()` subquery in the view keeps the last row per primary key.                                                          |
 
+`onlyWhere: check` is met in a layer whose `does` is `raw` too (definitions
+specification, section 5): there every action is `warn`, so the view keeps
+every row and `checks.sql` counts the rows that fail.
+
 The reasons of the quality entries follow the definitions package's message,
 `<What> isn't applied on <pack>: <reason>.`, so they start in lower case.
 
@@ -648,9 +652,13 @@ redundant: deduplicate is the only way a view gives one row per key.
 ### Row checks
 
 A table in a layer whose `does` lists `check` runs its expectations whose
-rule the pack applies. A table in any other layer runs none: its view is
-what it was before checks existed, and the definitions package reports each
-rule `NOT_APPLIED` with the hint to add `check` to the layer's `does`. With
+rule the pack applies. So does a table in a layer whose `does` is `raw`:
+every action there is `warn`, so its view keeps every row, as it was before
+checks existed, and `checks.sql` counts the rows that fail each check. A
+table in any other layer, including one that gives no `does`, runs none: its
+view is what it was before checks existed, and the definitions package
+reports each rule `NOT_APPLIED` with the hint to add `check` to the layer's
+`does`. With
 `<c>` the column in brackets and `<v>` a value (a number as it is, any other
 value as T-SQL text), the condition a row passes is written from the
 expectation's `rule`:
@@ -692,8 +700,8 @@ this rule and raises an error when it runs.", the view keeps the row, and
 
 ### Table checks
 
-A table in a layer whose `does` lists `check` runs its contract's table checks
-in `checks.sql`. The pack declares no `checks` capability, so the definitions
+A table in a layer whose `does` lists `check` or is `raw` runs its contract's
+table checks in `checks.sql` (in a `raw` layer, each as `warn`). The pack declares no `checks` capability, so the definitions
 package gives a Synapse table its table checks (and `unique`) whatever the
 Platform's `manage.checks` says (definitions specification, section 7.1).
 Databricks and DuckDB count table checks over the table they store, after the
