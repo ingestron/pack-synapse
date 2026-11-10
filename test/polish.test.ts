@@ -126,10 +126,10 @@ describe("types and references", () => {
     expect(views({ "totals.yaml": transform })).toContain("FROM [bronze].[orders]");
   });
 
-  it("says required is not checked, since views check no rows", () => {
+  it("checks required in a layer whose does lists check", () => {
     expect(synapse.contract?.["schema.*.properties.*.required"]).toEqual({
-      use: "not-yet",
-      reason: "Synapse views check no rows.",
+      use: "used",
+      does: "A not-null check with the standard's quality.required action, in a layer whose does lists check.",
     });
   });
 

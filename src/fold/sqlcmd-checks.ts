@@ -36,8 +36,9 @@ function statementProblems(statement: Statement): string[] {
     statement.kind === "use"
       ? `the database "${statement.database}"`
       : `the view of table "${statement.table}"`;
+  const quality = qualityTexts(statement).map(({ text }) => text);
   return [
-    ...(statementText(statement).includes("$(")
+    ...([statementText(statement), ...quality].some((text) => text.includes("$("))
       ? [
           `${owner} would hold "$(", which sqlcmd reads as the start of a variable such as $(database), even in a string; leave "$(" out of its names, path, columns and code`,
         ]
@@ -75,11 +76,26 @@ function textsOf(statement: Statement): Text[] {
     texts.flatMap((text) => (text === undefined ? [] : [{ text, startsLine: false }]));
   if (statement.kind === "use") return within(statement.database);
   const { query } = statement;
-  const names = within(statement.schema, statement.name);
+  const names = [
+    ...within(statement.schema, statement.name, ...Object.values(query.cleansed ?? {})),
+    ...qualityTexts(statement),
+  ];
   if (query.kind === "transform")
     return [...names, ...within(...query.columns), { text: codeOf(query), startsLine: true }];
   const columns = [...query.columns, ...(query.extra ?? [])].flatMap((column) =>
     within(column.name, column.physicalName, column.type),
   );
   return [...names, ...within(query.path, query.dataSource, query.csv?.delimiter), ...columns];
+}
+
+/** The texts checks.sql, and a view's drop checks, take from the definitions: names, conditions and queries. */
+function qualityTexts(statement: Statement): Text[] {
+  if (statement.kind === "use") return [];
+  return (statement.quality?.checks ?? []).flatMap((check) => [
+    { text: check.name, startsLine: false },
+    ...(check.kind === "row" ? [{ text: check.condition, startsLine: false }] : []),
+    ...(check.kind === "table" && "query" in check.count
+      ? [{ text: check.count.query, startsLine: false }]
+      : []),
+  ]);
 }

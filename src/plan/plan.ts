@@ -3,8 +3,15 @@
 // T-SQL. Building one environment writes the plan as it is; building every
 // environment together compares the targets' plans value by value.
 import type { Column, ResolvedModel, ResolvedTable, Step } from "@ingestron/definitions";
-import { relativePath, sourceStep } from "../sql/index.js";
+import { quote, relativePath, sourceStep } from "../sql/index.js";
 import type { FilesInput } from "../sql/index.js";
+import {
+  cleansedColumns,
+  fileColumnOf,
+  qualityPlan,
+  typesOf,
+  type QualityPlan,
+} from "./quality.js";
 
 /** Everything views.sql holds, in order. */
 export interface ViewsPlan {
@@ -31,6 +38,8 @@ export interface ViewPlan {
   schema: string;
   name: string;
   query: FilesPlan | TransformPlan;
+  /** What a view synapse-view keeps cleanses, deduplicates and checks, beyond reading. */
+  quality?: QualityPlan;
 }
 
 /** A view over files under a data source. */
@@ -44,6 +53,8 @@ export interface TransformPlan {
   columns: string[];
   /** The transform's code, with each `{{ tables.<input> }}` as the input's view. */
   code: CodePart[];
+  /** Each cleansed column's expression, by its name. */
+  cleansed?: Record<string, string>;
 }
 
 /** Literal code, or the view of an input. */
@@ -90,11 +101,37 @@ function viewOf(model: ResolvedModel, table: ResolvedTable): ViewPlan | undefine
   if (table.serve?.method === "synapse-serve")
     return { kind: "view", ...names, query: filesPlan(table, table.serve, { resolvedTypes }) };
   if (table.store?.method !== "synapse-view") return undefined;
+  return { kind: "view", ...names, ...keptView(model, table, resolvedTypes) };
+}
+
+/** The query of a view synapse-view keeps, and what it cleanses, deduplicates and checks. */
+function keptView(model: ResolvedModel, table: ResolvedTable, resolvedTypes: boolean) {
+  if (table.transform) {
+    const query = withCleansing(table, transformPlan(model, table));
+    const quality = qualityPlan(table, {}, []);
+    return { query, ...(quality && { quality }) };
+  }
   const renamed = table.ingest?.renamed ?? true;
-  const query = table.transform
-    ? transformPlan(model, table)
-    : filesPlan(table, table.store, { renamed, resolvedTypes });
-  return { kind: "view", ...names, query };
+  const files = filesPlan(table, table.store!, { renamed, resolvedTypes });
+  const quality = qualityPlan(table, typesOf(files), files.extra ?? []);
+  const query = withCleansing(table, files, quality?.deduplicate !== undefined);
+  return { query, ...(quality && { quality }) };
+}
+
+/** The query with its cleansed columns, and with the file column when a view over files deduplicates. */
+function withCleansing<Query extends FilesPlan | TransformPlan>(
+  table: ResolvedTable,
+  query: Query,
+  withFile = false,
+): Query {
+  const start =
+    query.kind === "files" ? fileColumnOf(query) : (column: Column) => quote(column.name);
+  const cleansed = cleansedColumns(table, start);
+  return {
+    ...query,
+    ...(Object.keys(cleansed).length > 0 && { cleansed }),
+    ...(withFile && { withFile }),
+  };
 }
 
 const twoPart = (table: ResolvedTable) => ({

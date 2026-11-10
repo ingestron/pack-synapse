@@ -113,15 +113,29 @@ export function sqlcmdRun(
   return runSqlcmd({ files, input: `environments/${target}.sql`, environment: supplied });
 }
 
-/** The fold property's view: the lines sqlcmd sends from views.sql, and its errors. */
+/** The lines sqlcmd sends from one file, as text. */
+function sent(run: Run, file: string): Record<string, string> {
+  const lines = run.lines.filter((line) => line.file === file);
+  return lines.length > 0 ? { [file]: `${lines.map((line) => line.text).join("\n")}\n` } : {};
+}
+
+/**
+ * The fold property's view: the lines sqlcmd sends from views.sql, started with the
+ * environment's wrapper, and from checks.sql, started with its checks wrapper when there is
+ * one, and their errors.
+ */
 export function sqlcmdFold(supplied: Readonly<Record<string, string>>): FoldView {
   return {
     view(files, target) {
       const run = sqlcmdRun(files, target, supplied);
-      const views = run.lines.filter((line) => line.file === "views.sql");
+      const input = `checks/${target}.sql`;
+      const checks =
+        input in files ? runSqlcmd({ files, input, environment: supplied }) : undefined;
+      const errors = [...run.errors, ...(checks?.errors ?? [])];
       return {
-        ...(views.length > 0 && { "views.sql": `${views.map((line) => line.text).join("\n")}\n` }),
-        ...(run.errors.length > 0 && { "sqlcmd errors": run.errors.join("\n") }),
+        ...sent(run, "views.sql"),
+        ...(checks && sent(checks, "checks.sql")),
+        ...(errors.length > 0 && { "sqlcmd errors": errors.join("\n") }),
       };
     },
   };

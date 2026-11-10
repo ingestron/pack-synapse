@@ -5,17 +5,17 @@ import { synapse } from "../../src/index.js";
 import { base, generate } from "../project.js";
 
 describe("contract", () => {
-  it("types the view's columns from the contract and checks no rows", () => {
+  it("types the view's columns from the contract and makes checks of its rules", () => {
     expect(synapse.contract?.["schema.*.properties"]).toMatchObject({ use: "used" });
     expect(synapse.contract?.["schema.*.properties.*.logicalType"]).toMatchObject({ use: "used" });
-    expect(synapse.contract?.["schema.*.quality"]).toEqual({
-      use: "not-yet",
-      reason: "Synapse views check no rows.",
-    });
-    expect(synapse.contract?.["schema.*.properties.*.quality"]).toEqual({
-      use: "not-yet",
-      reason: "Synapse views check no rows.",
-    });
+    for (const path of [
+      "schema.*.quality",
+      "schema.*.properties.*.quality",
+      "schema.*.properties.*.logicalTypeOptions",
+    ])
+      expect(synapse.contract?.[path], path).toMatchObject({ use: "used", whole: true });
+    expect(synapse.contract?.["schema.*.properties.*.unique"]).toMatchObject({ use: "used" });
+    expect(synapse.contract?.["schema.*.properties.*.primaryKey"]).toMatchObject({ use: "used" });
   });
 });
 

@@ -1,6 +1,8 @@
 // What the pack does with each intent path and value (definitions specification, section 11).
-// Synapse serverless builds views, which keep and run nothing, so it applies none of it.
+// Synapse serverless builds views, which keep and run nothing, so it applies none of what a store
+// or a job would; it applies checks and cleansing in its views and checks.sql.
 import { type IntentUse } from "@ingestron/definitions";
+import { qualityIntent } from "./quality-intent.js";
 
 const keepsNothing: IntentUse = {
   use: "not-applicable",
@@ -25,7 +27,6 @@ export const intent: Record<string, IntentUse> = {
   "retention.time_travel": keepsNothing,
   "retention.log": keepsNothing,
   rescued: keepsNothing,
-  "quality.results": keepsNothing,
   "load.deletes": keepsNothing,
   load: landsFiles,
   "retention.landed_files": landsFiles,
@@ -37,4 +38,5 @@ export const intent: Record<string, IntentUse> = {
     ]),
   ),
   operations: { use: "not-applicable", reason: "Synapse serverless runs no jobs." },
+  ...qualityIntent,
 };

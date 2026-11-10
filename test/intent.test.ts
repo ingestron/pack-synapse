@@ -43,7 +43,6 @@ describe("the pack's intent coverage", () => {
       ["retention.time_travel", undefined],
       ["retention.log", undefined],
       ["rescued", "true"],
-      ["quality.results", "true"],
       ["load.deletes.mode", "soft"],
       ["load.deletes.when", undefined],
     ] as const)
@@ -92,5 +91,70 @@ describe("the pack's intent coverage", () => {
         use: "not-applicable",
         reason: "Synapse serverless runs no jobs.",
       });
+  });
+
+  it("checks rows only in a layer whose does lists check, except patterns and arrays", () => {
+    for (const kind of ["notNull", "in", "notIn", "length", "range", "multipleOf"])
+      expect(intentUseOf(synapse, "quality.rules", kind), kind).toMatchObject({
+        use: "used",
+        onlyWhere: "check",
+      });
+    expect(intentUseOf(synapse, "quality.rules", "pattern")).toEqual({
+      use: "not-applicable",
+      reason: "serverless T-SQL has no regular expressions.",
+    });
+    expect(intentUseOf(synapse, "quality.rules", "items")).toEqual({
+      use: "not-applicable",
+      reason: "views type no arrays.",
+    });
+  });
+
+  it("applies warn and drop where it checks, but not fail, which checks.sql raises", () => {
+    for (const action of ["warn", "drop"])
+      expect(intentUseOf(synapse, "quality.actions", action), action).toMatchObject({
+        use: "used",
+        onlyWhere: "check",
+      });
+    expect(intentUseOf(synapse, "quality.actions", "fail")).toEqual({
+      use: "not-applicable",
+      reason:
+        "a view can't stop a load; checks.sql checks this rule and raises an error when it runs.",
+    });
+    expect(intentUseOf(synapse, "quality.table-checks", "true")).toMatchObject({
+      use: "used",
+      onlyWhere: "check",
+    });
+  });
+
+  it("keeps no quarantine and no results, and says checks.sql returns counts instead", () => {
+    expect(intentUseOf(synapse, "quality.quarantine", "true")).toEqual({
+      use: "not-applicable",
+      reason:
+        "a view keeps no rows to quarantine; checks.sql returns how many rows each drop check leaves out instead.",
+    });
+    expect(intentUseOf(synapse, "quality.results", "true")).toEqual({
+      use: "not-applicable",
+      reason:
+        "a view keeps no results; checks.sql returns each check's counts instead when it runs.",
+    });
+  });
+
+  it("cleanses and deduplicates in any layer the model gives them", () => {
+    for (const path of [
+      "cleanse.trim",
+      "cleanse.empty",
+      "cleanse.map",
+      "cleanse.case",
+      "cleanse.default",
+      "cleanse.timezone",
+      "deduplicate",
+    ]) {
+      const use = intentUseOf(synapse, path, "true");
+      expect(use, path).toMatchObject({
+        use: "used",
+        status: { level: "ga", checked: "2026-11-10" },
+      });
+      expect(use, path).not.toHaveProperty("onlyWhere");
+    }
   });
 });

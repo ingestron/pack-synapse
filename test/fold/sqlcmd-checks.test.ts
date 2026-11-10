@@ -93,3 +93,31 @@ describe("$( in a view", () => {
     ]);
   });
 });
+
+describe("sqlcmd commands in checks", () => {
+  it("refuses a check whose text would put a command line in checks.sql", () => {
+    const transform = [
+      "apiVersion: ingestron.io/v1",
+      "kind: Transform",
+      "id: totals",
+      "inputs: [orders]",
+      "code: SELECT id, total FROM {{ tables.orders }}",
+      "contract: orders",
+      'expectations: [{ name: positive, check: "total > 0\\nGO", action: warn }]',
+      "",
+    ].join("\n");
+    const standard = base["standard.yaml"]!.replace(
+      "store:",
+      "layers: [{ name: bronze, does: [check] }]\nstore:",
+    );
+    const contract = base["orders.yaml"]!.replace(
+      "  - name: orders\n",
+      "  - name: totals\n    logicalType: object\n    properties:\n      - { name: id, logicalType: integer }\n      - { name: total, logicalType: number }\n  - name: orders\n",
+    );
+    expect(
+      problems({ "totals.yaml": transform, "standard.yaml": standard, "orders.yaml": contract })
+        .map(({ message }) => message)
+        .join("\n"),
+    ).toContain('would hold the line "GO" in views.sql');
+  });
+});

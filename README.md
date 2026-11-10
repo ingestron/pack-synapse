@@ -80,6 +80,63 @@ Columns the landed files carry beyond the contract, such as ADF's audit
 columns, follow the contract's columns. They are read as text, and timestamps
 are converted to `DATETIME2(7)`.
 
+## Checks and cleansing
+
+In a layer whose `does` lists `cleanse` or `deduplicate`, each view cleanses
+its columns in its `SELECT` (`TRIM`, `NULLIF`, `CASE`, `UPPER` or `LOWER`,
+`COALESCE`, and time zones with `AT TIME ZONE`) and keeps the last row per
+primary key with `ROW_NUMBER()`. Time zones are converted with their Windows
+names, such as `GMT Standard Time` for `Europe/London`. A zone Windows has no
+name for is not converted, and `ingestron plan` and `ingestron check` warn
+about that column.
+
+In a layer whose `does` lists `check`, a view leaves out the rows that fail a
+`drop` check. A view can't stop a load, so `warn` and `fail` checks keep their
+rows, and Ingestron also writes `checks.sql`:
+
+```text
+build/synapse/
+  checks.sql
+  checks/dev.sql
+  checks/prod.sql
+```
+
+`checks.sql` reads the same files the views read, cleansed the same way, and
+counts each check's failing rows, the rows a `drop` check leaves out included.
+It returns one row per check: the view, the check, its action, the rows it
+counted and whether it passed. Then it raises an error for the first `fail`
+check that failed.
+
+Patterns (`pattern`), array checks (`items`), quarantine and kept results are
+not applied: serverless T-SQL has no regular expressions, views type no
+arrays, and a view keeps nothing. `ingestron check` warns about each one it
+finds, with the code `NOT_APPLIED` and the reason.
+
+### Run checks.sql after each landing
+
+`checks.sql` stops nothing unless something runs it after each landing: the
+views read the files whenever they are queried, and nothing runs the checks
+for you. Run it in one of these ways:
+
+- **sqlcmd.** From `build/synapse/`, run the environment's checks script, which
+  sets that environment's values and stops at the first error:
+
+  ```sh
+  sqlcmd -S <workspace>-ondemand.sql.azuresynapse.net -i checks/prod.sql
+  ```
+
+  `<workspace>` is your Synapse workspace's name. Sign in as for `views.sql`
+  (see [Deploy](#deploy)).
+
+- **A pipeline's Script activity**, in Azure Data Factory or Synapse, after
+  the activity that lands the files. Paste the text of `checks.sql` as one
+  script, of type Query. `checks.sql` is one batch with no `GO`, so it runs as
+  it is. Where environments differ, put each environment's values from
+  `checks/<environment>.sql` in place of each `$(name)`. A failing `fail`
+  check fails the activity, and its output holds the counts.
+- **CI.** Run the sqlcmd command above as a scheduled step, or one that starts
+  after each landing, as for `views.sql` in [In CI](#in-ci).
+
 ## Views or tables
 
 |                             | Views (Synapse)                              | Tables (a store pack, served with `synapse-serve`) |
@@ -278,6 +335,11 @@ so the pack applies none of it, and the files are the same as with 2.1.
   `NOT_APPLIED`, with the reason. What the landing pack does, such as the files
   it lands, is not reported.
 - The Platform has a `synapse` section, which takes no fields.
+- Views cleanse and deduplicate, and leave out the rows `drop` checks fail, in
+  the layers whose `does` asks for it; `checks.sql` and `checks/<environment>.sql`
+  count every check ([Checks and cleansing](#checks-and-cleansing)). A layer
+  without `does` gets the views it had: each contract rule there is
+  `NOT_APPLIED`, with a hint to add `check` to the layer's `does`.
 - Needs `@ingestron/definitions` 1.13 or later.
 
 ## What changed in 2.0

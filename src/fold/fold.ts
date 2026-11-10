@@ -10,8 +10,8 @@ import {
   type SuppliedValue,
   type TargetDifference,
 } from "@ingestron/definitions";
-import { build, viewsFile, writeViews } from "../output/index.js";
-import { caseNotices } from "./fold-notices.js";
+import { build, checksFile, viewsFile, writeChecks, writeViews } from "../output/index.js";
+import { caseNotices, qualityNotices } from "./fold-notices.js";
 import { foldPlans, type Plans } from "./fold-plan.js";
 import { markers, type Fold, type Variable } from "./fold-places.js";
 import { nameVariables } from "./fold-names.js";
@@ -24,9 +24,9 @@ import {
   settingsThatDiffer,
   type Models,
 } from "./fold-problems.js";
-import { hasView, plan } from "../plan/index.js";
+import { hasView, plan, type ViewsPlan } from "../plan/index.js";
 import { holdsDeployText, relativePath, sourceStep, viewingStep } from "../sql/index.js";
-import { environmentFile, reference, substituted, wrapper } from "./sqlcmd.js";
+import { checksScript, environmentFile, reference, substituted, wrapper } from "./sqlcmd.js";
 
 /**
  * One views.sql for every target, with a wrapper per target. With an error among the
@@ -47,18 +47,38 @@ export function buildEnvironments(models: Models): EnvironmentsBuild {
   const template = foldPlans(fold, plans, tablesOf(models[targets[0]!]!));
   nameVariables(fold, plans);
   if (fold.problems.length > 0) return empty(withSettings(fold.problems, models, differing));
-  const views = writeViews(template).replace(markers, (_, index: string) =>
-    reference(fold.variables[Number(index)]!.name),
-  );
-  const left = leftInViews(models, views);
+  const scripts = scriptsOf(fold, template);
+  const left = Object.entries(scripts).flatMap(([file, text]) => leftIn(models, file, text));
   if (left.length > 0) return empty(left);
-  const files: Record<string, string> = { [viewsFile]: views };
-  for (const target of targets)
-    files[environmentFile(target)] = wrapper(template.project, target, fold.variables);
+  const files = { ...scripts, ...wrappersOf(fold, template.project, checksFile in scripts) };
   const deployValues = suppliedValues(fold);
   const unlike = viewProblems(models, files, deployValues);
   if (unlike.length > 0) return empty(withSettings(unlike, models, differing));
-  return { files, deployValues, problems: caseNotices(models, deployValues) };
+  const notices = [...caseNotices(models, deployValues), ...qualityNotices(models[targets[0]!]!)];
+  return { files, deployValues, problems: notices };
+}
+
+/** views.sql, and checks.sql when a view runs checks, with each marker as its variable. */
+function scriptsOf(fold: Fold, template: ViewsPlan): Record<string, string> {
+  const named = (text: string) =>
+    text.replace(markers, (_, index: string) => reference(fold.variables[Number(index)]!.name));
+  const checks = writeChecks(template);
+  return {
+    [viewsFile]: named(writeViews(template)),
+    ...(checks !== undefined && { [checksFile]: named(checks) }),
+  };
+}
+
+/** Each target's wrapper of views.sql, and of checks.sql when there is one. */
+function wrappersOf(fold: Fold, project: string, checks: boolean): Record<string, string> {
+  return Object.fromEntries(
+    fold.targets.flatMap((target) => [
+      [environmentFile(target), wrapper(project, target, fold.variables)],
+      ...(checks
+        ? [[checksScript.wrapperOf(target), wrapper(project, target, fold.variables, checksScript)]]
+        : []),
+    ]),
+  );
 }
 
 function empty(problems: EnvironmentsProblem[]): EnvironmentsBuild {
@@ -114,13 +134,13 @@ function unknownPaths(model: ResolvedModel): EnvironmentsProblem[] {
 }
 
 /** A deploy-time value where no variable stands for it, such as in a column's name. */
-function leftInViews(models: Models, views: string): EnvironmentsProblem[] {
+function leftIn(models: Models, file: string, text: string): EnvironmentsProblem[] {
   return Object.values(models).flatMap((model) =>
     (model.deployValues ?? [])
-      .filter((value) => views.includes(value.text))
+      .filter((value) => text.includes(value.text))
       .map((value) =>
         deployProblem(
-          `views.sql would hold ${value.text}, which is supplied only when deploying, where the pack cannot make it a SQLCMD variable; only a database, schema or view name, a file path, a data source and a CSV delimiter can be.`,
+          `${file} would hold ${value.text}, which is supplied only when deploying, where the pack cannot make it a SQLCMD variable; only a database, schema or view name, a file path, a data source and a CSV delimiter can be.`,
           value,
         ),
       ),
@@ -156,14 +176,16 @@ function viewProblems(
       value.suppliedAs.map((name) => [name, `\${envvar:${value.name}}`]),
     ),
   );
-  const unlike = Object.keys(models).filter(
-    (target) =>
-      substituted(files, target, supplied)[viewsFile] !== build(models[target]!)[viewsFile],
-  );
-  if (unlike.length === 0) return [];
-  return [
-    differ(
-      `views.sql cannot be generated once for every environment: in ${listOf(unlike)} it would not be what that environment gets on its own, because the environments differ there in more than values.`,
-    ),
-  ];
+  for (const file of [viewsFile, checksFile]) {
+    const unlike = Object.keys(models).filter(
+      (target) => substituted(files, target, supplied)[file] !== build(models[target]!)[file],
+    );
+    if (unlike.length > 0)
+      return [
+        differ(
+          `${file} cannot be generated once for every environment: in ${listOf(unlike)} it would not be what that environment gets on its own, because the environments differ there in more than values.`,
+        ),
+      ];
+  }
+  return [];
 }

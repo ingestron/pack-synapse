@@ -33,13 +33,21 @@ export function columnList(columns: Column[], options: ColumnOptions = {}): stri
     .join(",\n");
 }
 
-/** `*`, or each column under its contract name when a file name differs, then the extra columns. */
-function selectList(columns: Column[], options: ColumnOptions, extra: Column[] = []): string {
-  const same = columns.every((column) => fileName(column, options) === column.name);
-  if (same && extra.length === 0) return "*";
-  return [
+/**
+ * The `SELECT` of a view over files: `*`, or each column under its contract name when a file
+ * name differs, then the extra columns. With cleansing or the file column, one column a line,
+ * each cleansed column as its expression.
+ */
+function selectClause(input: FilesInput): string {
+  const { columns, extra = [], cleansed = {} } = input;
+  const listed = Object.keys(cleansed).length > 0 || input.withFile === true;
+  const same = columns.every((column) => fileName(column, input) === column.name);
+  if (same && extra.length === 0 && !listed) return "SELECT *";
+  const items = [
     ...columns.map((column) => {
-      const file = fileName(column, options);
+      const file = fileName(column, input);
+      const expression = cleansed[column.name];
+      if (expression !== undefined) return `${expression} AS ${quote(column.name)}`;
       return file === column.name ? quote(column.name) : `${quote(file)} AS ${quote(column.name)}`;
     }),
     ...extra.map((column) =>
@@ -47,8 +55,15 @@ function selectList(columns: Column[], options: ColumnOptions, extra: Column[] =
         ? `CONVERT(DATETIME2(7), ${quote(column.name)}, 127) AS ${quote(column.name)}`
         : quote(column.name),
     ),
-  ].join(", ");
+    ...(input.withFile ? [`[rows].filepath() AS ${quote(fileColumn)}`] : []),
+  ];
+  return listed
+    ? `SELECT\n${items.map((item) => `  ${item}`).join(",\n")}`
+    : `SELECT ${items.join(", ")}`;
 }
+
+/** The column that names each row's file, for deduplicate; no file holds it. */
+export const fileColumn = "_ingestron_file";
 
 /** Extra columns are written as text by the step that adds them; timestamps are ISO 8601 text. */
 function extraList(extra: Column[]): string[] {
@@ -60,12 +75,13 @@ function extraList(extra: Column[]): string[] {
 
 const utf8 = "COLLATE Latin1_General_100_BIN2_UTF8";
 
-function fileName(column: Column, { renamed = true }: ColumnOptions): string {
+/** The column's name in the files: its physicalName when the ingest did not rename it. */
+export function fileName(column: Column, { renamed = true }: ColumnOptions): string {
   return !renamed && column.physicalName ? column.physicalName : column.name;
 }
 
-/** The resolved type when it is Synapse's; otherwise from the logicalType. */
-function typeOf(column: Column, { resolvedTypes = false }: ColumnOptions): string {
+/** The column's type in the view: the resolved type when it is Synapse's; otherwise from the logicalType. */
+export function typeOf(column: Column, { resolvedTypes = false }: ColumnOptions): string {
   const mapped = column.logicalType ? synapseTypes[column.logicalType] : undefined;
   const type = resolvedTypes ? (column.type ?? mapped) : (mapped ?? column.type);
   return type ?? fallbackType;
@@ -81,6 +97,10 @@ export interface FilesInput extends ColumnOptions {
   /** Columns the files carry beyond the contract, such as audit columns, in order. */
   extra?: Column[];
   csv?: { header: boolean; delimiter: string };
+  /** Each cleansed column's expression, by its contract name. */
+  cleansed?: Record<string, string>;
+  /** Adds the file each row came from, `[rows].filepath()`, as `[_ingestron_file]`. */
+  withFile?: boolean;
 }
 
 /**
@@ -94,7 +114,7 @@ export function filesQuery(input: FilesInput): string {
     ...formatOptions(input),
   ];
   return [
-    `SELECT ${selectList(input.columns, input, input.extra)}`,
+    selectClause(input),
     "FROM OPENROWSET(",
     options.join(",\n"),
     ") WITH (",
@@ -131,6 +151,6 @@ export function viewStatement(fullName: { schema: string; table: string }, query
 }
 
 /** A T-SQL string literal, with `'` doubled. */
-function literal(text: string): string {
+export function literal(text: string): string {
   return `'${text.replaceAll("'", "''")}'`;
 }

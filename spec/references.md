@@ -148,3 +148,133 @@ stops it with exit code 1. Run against a local SQL Server engine (Azure SQL
 Edge 15.0.2000.1574), the wrappers of the test fixture set each environment's
 values and create its views; that engine has no Synapse `OPENROWSET`
 options, so those were replaced for the run.
+
+## Quality and cleansing
+
+Accessed 2026-11-10. Each Microsoft Learn page is pinned by its `ms.date` and
+the source commit its metadata reports (`git_commit_id`). Every T-SQL page
+below lists Azure Synapse Analytics under "Applies to", except `USE`, which
+the feature page below covers for serverless SQL pools. The pack cannot run
+T-SQL in its tests (no Synapse workspace, no cloud), so each form is checked
+against these pages, and the tests check the text the pack writes.
+
+- [T-SQL feature differences in Synapse SQL](https://learn.microsoft.com/en-us/azure/synapse-analytics/sql/overview-features)
+  (ms.date 2026-10-05, commit `14120b58fa737dafeda3680f8cdd66a48ac9becc`):
+  serverless SQL pools support every T-SQL date and time, mathematical,
+  logical, conversion and string function, every built-in aggregate, every
+  operator, every control-of-flow statement, and `USE`; they do not support
+  table variables, and a temporary table cannot take rows from external
+  data. So `checks.sql` keeps its counts in scalar variables.
+- [AT TIME ZONE](https://learn.microsoft.com/en-us/sql/t-sql/queries/at-time-zone-transact-sql)
+  (ms.date 2026-09-20, commit `a52ca41720ddecda8407b735a031a8559e75bf8c`):
+  a `datetime2` without an offset is taken to be in the named zone and gives
+  a `datetimeoffset`; a `datetimeoffset` is converted to the named zone; zone
+  names are Windows names, listed in `sys.time_zone_info`; in the skipped
+  hour a time is moved forward and given the offset after the change, and in
+  the repeated hour it is given the offset before the change.
+- [sys.time_zone_info](https://learn.microsoft.com/en-us/sql/relational-databases/system-catalog-views/sys-time-zone-info-transact-sql)
+  (ms.date 2024-11-25, commit `6c26474bf9bd778405f06d4962f8253dbc340a90`):
+  the zones `AT TIME ZONE` takes, by their Windows names.
+- [CAST and CONVERT](https://learn.microsoft.com/en-us/sql/t-sql/functions/cast-and-convert-transact-sql)
+  (ms.date 2026-10-13, commit `a52ca41720ddecda8407b735a031a8559e75bf8c`):
+  `CAST(<datetimeoffset> AS DATETIME2(7))` keeps the date and time and drops
+  the offset; `CAST('<text>' AS DATE)`, `CAST('<text>' AS DATETIME2(7))` and
+  `CAST(1 AS BIT)`.
+- [Data type precedence](https://learn.microsoft.com/en-us/sql/t-sql/data-types/data-type-precedence-transact-sql)
+  (ms.date 2026-10-13, commit `4e3c79e97cd8a72ca8d7162583f5f9163fd81891`) and
+  [bit](https://learn.microsoft.com/en-us/sql/t-sql/data-types/bit-transact-sql)
+  (ms.date 2024-09-24, commit `4e3c79e97cd8a72ca8d7162583f5f9163fd81891`):
+  `int` ranks above `bit`, so a `boolean` value is written as a cast to `BIT`.
+- [TRIM](https://learn.microsoft.com/en-us/sql/t-sql/functions/trim-transact-sql)
+  (ms.date 2025-08-26, commit `5f220f578385645cd005eed84f5b6881817b1c81`):
+  removes the space character from both ends by default.
+- [NULLIF](https://learn.microsoft.com/en-us/sql/t-sql/language-elements/nullif-transact-sql)
+  (ms.date 2017-09-08, commit `a52ca41720ddecda8407b735a031a8559e75bf8c`),
+  [CASE](https://learn.microsoft.com/en-us/sql/t-sql/language-elements/case-transact-sql)
+  (ms.date 2025-09-18, commit `a52ca41720ddecda8407b735a031a8559e75bf8c`),
+  [UPPER](https://learn.microsoft.com/en-us/sql/t-sql/functions/upper-transact-sql)
+  and [LOWER](https://learn.microsoft.com/en-us/sql/t-sql/functions/lower-transact-sql)
+  (both ms.date 2017-03-13, commit `5f220f578385645cd005eed84f5b6881817b1c81`),
+  [COALESCE](https://learn.microsoft.com/en-us/sql/t-sql/language-elements/coalesce-transact-sql)
+  (ms.date 2025-01-28, commit `a52ca41720ddecda8407b735a031a8559e75bf8c`) and
+  [ISNULL](https://learn.microsoft.com/en-us/sql/t-sql/functions/isnull-transact-sql)
+  (ms.date 2024-08-02, commit `a52ca41720ddecda8407b735a031a8559e75bf8c`):
+  the cleansing expressions, and a count that may be null read as 0.
+- [= (String comparison or assignment)](https://learn.microsoft.com/en-us/sql/t-sql/language-elements/string-comparison-assignment)
+  (ms.date 2023-06-07, commit `5f220f578385645cd005eed84f5b6881817b1c81`):
+  T-SQL pads strings to the same length before comparing them, so `'abc'`
+  and `'abc '` are equal; only `LIKE` differs.
+- [LEN](https://learn.microsoft.com/en-us/sql/t-sql/functions/len-transact-sql)
+  (ms.date 2025-10-20, commit `a52ca41720ddecda8407b735a031a8559e75bf8c`):
+  counts characters, leaving out spaces at the end; and
+  [REPLACE](https://learn.microsoft.com/en-us/sql/t-sql/functions/replace-transact-sql)
+  (ms.date 2017-08-23, commit `5f220f578385645cd005eed84f5b6881817b1c81`), so
+  `LEN(REPLACE(<c>, ' ', '_'))` counts them too.
+- [% (Modulus)](https://learn.microsoft.com/en-us/sql/t-sql/language-elements/modulo-transact-sql)
+  (ms.date 2024-03-19, commit `5f220f578385645cd005eed84f5b6881817b1c81`):
+  the dividend and the divisor must be of the integer or monetary types, or
+  `numeric`; and
+  [FLOOR](https://learn.microsoft.com/en-us/sql/t-sql/functions/floor-transact-sql)
+  (ms.date 2025-11-21, commit `4e3c79e97cd8a72ca8d7162583f5f9163fd81891`),
+  which takes approximate numbers too.
+- [IN](https://learn.microsoft.com/en-us/sql/t-sql/language-elements/in-transact-sql)
+  (ms.date 2016-08-29, commit `5f220f578385645cd005eed84f5b6881817b1c81`):
+  a null compared with `IN` or `NOT IN` gives UNKNOWN; and
+  [NULL and UNKNOWN](https://learn.microsoft.com/en-us/sql/t-sql/language-elements/null-and-unknown-transact-sql)
+  (ms.date 2024-09-12, commit `5f220f578385645cd005eed84f5b6881817b1c81`):
+  how `AND`, `OR` and `NOT` treat UNKNOWN.
+- [BETWEEN](https://learn.microsoft.com/en-us/sql/t-sql/language-elements/between-transact-sql)
+  (ms.date 2025-01-27, commit `5f220f578385645cd005eed84f5b6881817b1c81`).
+- [ROW_NUMBER](https://learn.microsoft.com/en-us/sql/t-sql/functions/row-number-transact-sql)
+  (ms.date 2026-06-15, commit `a52ca41720ddecda8407b735a031a8559e75bf8c`) and
+  the [OVER clause](https://learn.microsoft.com/en-us/sql/t-sql/queries/select-over-clause-transact-sql)
+  (ms.date 2026-06-12, commit `a52ca41720ddecda8407b735a031a8559e75bf8c`):
+  `ROW_NUMBER() OVER (PARTITION BY … ORDER BY …)`; the order decides which
+  row is first only when it is unique within the key.
+- [ORDER BY clause](https://learn.microsoft.com/en-us/sql/t-sql/queries/select-order-by-clause-transact-sql)
+  (ms.date 2026-09-16, commit `a52ca41720ddecda8407b735a031a8559e75bf8c`):
+  null is the lowest value, so `DESC` puts it last.
+- [Use file metadata in queries](https://learn.microsoft.com/en-us/azure/synapse-analytics/sql/query-specific-files)
+  (ms.date 2025-01-17, commit `6a58509277011b7b5cfe0ee0ed75f162d88af843`):
+  `<alias>.filepath()` gives the path of the file each row of `OPENROWSET`
+  came from.
+- [COUNT_BIG](https://learn.microsoft.com/en-us/sql/t-sql/functions/count-big-transact-sql)
+  (ms.date 2026-01-19, commit `a52ca41720ddecda8407b735a031a8559e75bf8c`):
+  `COUNT_BIG(*)` counts every row; `COUNT_BIG(<expression>)` the non-null
+  values; `DISTINCT` takes one expression and leaves nulls out.
+- [DECLARE @local_variable](https://learn.microsoft.com/en-us/sql/t-sql/language-elements/declare-local-variable-transact-sql)
+  (ms.date 2025-08-14, commit `a52ca41720ddecda8407b735a031a8559e75bf8c`),
+  [SELECT @local_variable](https://learn.microsoft.com/en-us/sql/t-sql/language-elements/select-local-variable-transact-sql)
+  (ms.date 2026-05-07, commit `5f220f578385645cd005eed84f5b6881817b1c81`):
+  one `SELECT` sets several variables; and
+  [SET @local_variable](https://learn.microsoft.com/en-us/sql/t-sql/language-elements/set-local-variable-transact-sql)
+  (ms.date 2026-05-07, commit `a52ca41720ddecda8407b735a031a8559e75bf8c`).
+  A variable lasts for the batch, so `checks.sql` is one batch.
+- [USE](https://learn.microsoft.com/en-us/sql/t-sql/language-elements/use-transact-sql)
+  (ms.date 2026-10-28, commit `a52ca41720ddecda8407b735a031a8559e75bf8c`):
+  `USE` takes effect at once, so the statements after it in the same batch
+  run in that database.
+- [IF...ELSE](https://learn.microsoft.com/en-us/sql/t-sql/language-elements/if-else-transact-sql)
+  (ms.date 2024-05-17, commit `5f220f578385645cd005eed84f5b6881817b1c81`),
+  [THROW](https://learn.microsoft.com/en-us/sql/t-sql/language-elements/throw-transact-sql)
+  (ms.date 2024-07-26, commit `a52ca41720ddecda8407b735a031a8559e75bf8c`;
+  without `TRY…CATCH`, `THROW` ends the batch) and
+  [UNION](https://learn.microsoft.com/en-us/sql/t-sql/language-elements/set-operators-union-transact-sql)
+  (ms.date 2017-08-07, commit `a52ca41720ddecda8407b735a031a8559e75bf8c`).
+- [Script activity](https://learn.microsoft.com/en-us/azure/data-factory/transform-data-using-script)
+  (ms.date 2025-08-01, commit `23a90c50b71cd0196cd4fad079078ffe32235e6a`):
+  runs one or more SQL statements against Azure Synapse Analytics in a
+  Data Factory or Synapse pipeline, and returns their result sets.
+
+Windows zone names come from the Unicode CLDR, release 49 (published
+2026-10-21), read on 2026-11-10 by `scripts/windows-zones.mjs`:
+
+- [`common/supplemental/windowsZones.xml`](https://raw.githubusercontent.com/unicode-org/cldr/release-49/common/supplemental/windowsZones.xml):
+  each `mapZone` maps a Windows zone (`other`) to the IANA names of a
+  territory (`type`, space-separated); territory `001` gives the Windows
+  zone's main IANA name.
+- [`common/bcp47/timezone.xml`](https://raw.githubusercontent.com/unicode-org/cldr/release-49/common/bcp47/timezone.xml):
+  each `type` lists in `alias` the IANA names that are one zone, such as
+  `Asia/Calcutta Asia/Kolkata`.
+- The CLDR [release 49 tag](https://github.com/unicode-org/cldr/releases/tag/release-49),
+  the latest release on 2026-11-10.

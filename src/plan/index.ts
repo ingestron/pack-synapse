@@ -11,3 +11,4 @@ export {
   type ViewReference,
   type ViewsPlan,
 } from "./plan.js";
+export type { CheckPlan, QualityPlan, RowCheckPlan, TableCheckPlan } from "./quality.js";
