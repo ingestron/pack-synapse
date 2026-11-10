@@ -1,7 +1,7 @@
 // Windows zone names for the IANA names the model gives (spec/behaviour.md, "Quality and
 // cleansing", "Time zones"), and what a zone Windows has no name for does to a view.
 import { memoryFiles } from "@ingestron/config";
-import { resolveDefinitions, type ResolvedModel } from "@ingestron/definitions";
+import { intentUseOf, resolveDefinitions, type ResolvedModel } from "@ingestron/definitions";
 import { describe, expect, it } from "vitest";
 import { synapse } from "../../src/index.js";
 import { windowsZone, windowsZones } from "../../src/zones/index.js";
@@ -57,20 +57,41 @@ describe("a zone Windows has no name for", () => {
     expect(view).not.toContain("Troll");
   });
 
-  it("is a notice in the words of NOT_APPLIED when building every environment", () => {
+  it("is NOT_APPLIED at the column, and the table keeps the zone it was in", () => {
+    const { result, model } = crm(changes);
+    const notApplied = result.diagnostics.filter(
+      (item) => item.code === "NOT_APPLIED" && item.message.startsWith("Time zone"),
+    );
+    expect(notApplied.map(({ message, location }) => [message, location?.file])).toEqual([
+      [
+        "Time zone conversion isn't applied on synapse: Windows has no zone for Antarctica/Troll.",
+        "transforms/customers_clean.yaml",
+      ],
+    ]);
+    const orders = model!.tables.find((table) => table.name === "customers_clean")!;
+    expect(orders.cleanse?.columns.contacted_at?.timezone).toEqual({
+      from: "UTC",
+      to: "Antarctica/Troll",
+    });
+  });
+
+  it("is declared in coverage for every zone the table has no Windows name for", () => {
+    const use = intentUseOf(synapse, "cleanse.timezone", "true");
+    const listed = use?.use === "used" ? Object.keys(use.zonesNotApplied ?? {}) : [];
+    expect(listed).toEqual(["Antarctica/Troll", "CST6CDT", "EST5EDT", "MST7MDT", "PST8PDT"]);
+    for (const zone of listed) expect(windowsZone(zone), zone).toBeUndefined();
+    expect(use).toMatchObject({
+      zonesNotApplied: { "Antarctica/Troll": "Windows has no zone for Antarctica/Troll." },
+    });
+  });
+
+  it("gives no notice of its own when building every environment", () => {
     const model = resolveDefinitions(memoryFiles(crmFiles(changes)), {
       packs: [landing, synapse, tables],
       environment: "dev",
       deployTime: true,
       environmentsTogether: true,
     }).model as ResolvedModel;
-    expect(synapse.buildEnvironments!({ dev: model }).problems).toContainEqual({
-      code: "PACK_NOTICE",
-      severity: "warning",
-      message:
-        "Time zone conversion isn't applied on Synapse: Windows has no zone for Antarctica/Troll.",
-      hint: 'The column "contacted_at" of table "customers_clean" keeps the times it has. Name a zone that Windows has, or convert the column in a layer another engine keeps.',
-      file: "transforms/customers_clean.yaml",
-    });
+    expect(synapse.buildEnvironments!({ dev: model }).problems).toEqual([]);
   });
 });

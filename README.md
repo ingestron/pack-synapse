@@ -87,8 +87,8 @@ its columns in its `SELECT` (`TRIM`, `NULLIF`, `CASE`, `UPPER` or `LOWER`,
 `COALESCE`, and time zones with `AT TIME ZONE`) and keeps the last row per
 primary key with `ROW_NUMBER()`. Time zones are converted with their Windows
 names, such as `GMT Standard Time` for `Europe/London`. A zone Windows has no
-name for is not converted, and `ingestron plan` and `ingestron check` warn
-about that column.
+name for is not converted, and `ingestron check` warns about that column
+(`NOT_APPLIED`).
 
 In a layer whose `does` lists `check`, a view leaves out the rows that fail a
 `drop` check. A view can't stop a load, so `warn` and `fail` checks keep their
@@ -101,11 +101,12 @@ build/synapse/
   checks/prod.sql
 ```
 
-`checks.sql` reads the same files the views read, cleansed the same way, and
-counts each check's failing rows, the rows a `drop` check leaves out included.
-It returns one row per check: the view, the check, its action, the rows it
-counted and whether it passed. Then it raises an error for the first `fail`
-check that failed.
+`checks.sql` reads the same files the views read, cleansed the same way. It
+counts each row check's failing rows, the rows a `drop` check leaves out
+included, and counts each table check over the rows the view keeps, as other
+engines count the table they store. It returns one row per check: the view,
+the check, its action, the rows it counted and whether it passed. Then it
+raises an error for the first `fail` check that failed.
 
 Patterns (`pattern`), array checks (`items`), quarantine and kept results are
 not applied: serverless T-SQL has no regular expressions, views type no
@@ -132,8 +133,9 @@ for you. Run it in one of these ways:
   the activity that lands the files. Paste the text of `checks.sql` as one
   script, of type Query. `checks.sql` is one batch with no `GO`, so it runs as
   it is. Where environments differ, put each environment's values from
-  `checks/<environment>.sql` in place of each `$(name)`. A failing `fail`
-  check fails the activity, and its output holds the counts.
+  `checks/<environment>.sql` in place of each `$(name)`. When a `fail` check
+  fails, the activity fails with that check's error. When the run succeeds,
+  the activity's output holds the counts.
 - **CI.** Run the sqlcmd command above as a scheduled step, or one that starts
   after each landing, as for `views.sql` in [In CI](#in-ci).
 

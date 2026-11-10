@@ -41,7 +41,8 @@ function converted(start: string, zones: { from: string; to: string }): string {
   if (!convertible(zones)) return start;
   const from = literal(windowsZone(zones.from)!);
   const to = literal(windowsZone(zones.to)!);
-  return `CAST((${start} AT TIME ZONE ${from}) AT TIME ZONE ${to} AS DATETIME2(7))`;
+  // Cast first, so a transform's column that comes out as text converts too.
+  return `CAST((CAST(${start} AS DATETIME2(7)) AT TIME ZONE ${from}) AT TIME ZONE ${to} AS DATETIME2(7))`;
 }
 
 /**

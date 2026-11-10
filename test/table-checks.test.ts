@@ -128,3 +128,56 @@ describe("table checks in checks.sql", () => {
     });
   });
 });
+
+describe("table checks where drop checks leave rows out", () => {
+  const files = () =>
+    run({
+      "standard.yaml": standard("[check]", ["quality: { required: drop }"]),
+      "orders.yaml": base["orders.yaml"]!.replace(
+        "    properties:",
+        () =>
+          "    quality:\n      - { type: library, metric: rowCount, mustBeGreaterThan: 0 }\n    properties:",
+      ).replace("primaryKey: true }", "primaryKey: true, required: true, unique: true }"),
+    });
+  const rows = ["SELECT *", ...filesRead].join("\n");
+  const kept = ["SELECT *", "FROM (", rows, ") AS [checked]", "WHERE ([id] IS NOT NULL)"].join(
+    "\n",
+  );
+
+  it("count the row checks over the files, and the table checks over the rows the view keeps", () => {
+    expect(files()["checks.sql"]).toContain(
+      [
+        "-- orders",
+        "DECLARE @rows_1 BIGINT, @kept_1 BIGINT, @check_1_1 BIGINT, @check_1_2 BIGINT, @check_1_3 BIGINT;",
+        "SELECT",
+        "  @rows_1 = COUNT_BIG(*),",
+        "  @check_1_1 = COUNT_BIG(CASE WHEN [id] IS NOT NULL THEN NULL ELSE 1 END)",
+        "FROM (",
+        rows,
+        ") AS [rows];",
+        "SELECT",
+        "  @kept_1 = COUNT_BIG(*),",
+        "  @check_1_2 = COUNT_BIG(*),",
+        "  @check_1_3 = COUNT_BIG(*) - COUNT_BIG(DISTINCT [id])",
+        "FROM (",
+        kept,
+        ") AS [rows];",
+      ].join("\n"),
+    );
+  });
+
+  it("so a file's null-id row, which drop leaves out, is not a duplicate, and an empty view has no rows", () => {
+    const checks = files()["checks.sql"]!;
+    const beforeDrop = checks.slice(
+      checks.indexOf("@rows_1 = COUNT_BIG(*)"),
+      checks.indexOf(") AS [rows];"),
+    );
+    // Neither table check reads the rows before drop, where the null-id row still is.
+    expect(beforeDrop).not.toContain("@check_1_2");
+    expect(beforeDrop).not.toContain("@check_1_3");
+    // rowCount compares the rows the view keeps: when drop leaves out every row, it is 0 and fails.
+    expect(checks).toContain(
+      "N'orders_rowcount' AS [check], N'warn' AS [action], ISNULL(@check_1_2, 0) AS [failing_rows], CASE WHEN ISNULL(@check_1_2, 0) > 0 THEN 1 ELSE 0 END AS [passed]",
+    );
+  });
+});

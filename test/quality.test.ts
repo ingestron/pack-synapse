@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import { crm, viewOf } from "./quality-project.js";
 
 const toUtc = (column: string) =>
-  `CAST(([${column}] AT TIME ZONE 'GMT Standard Time') AT TIME ZONE 'UTC' AS DATETIME2(7)) AS [${column}]`;
+  `CAST((CAST([${column}] AS DATETIME2(7)) AT TIME ZONE 'GMT Standard Time') AT TIME ZONE 'UTC' AS DATETIME2(7)) AS [${column}]`;
 
 /** customers_clean's columns, cleansed in the model's order. */
 const customersColumns = [
@@ -22,7 +22,7 @@ const customersColumns = [
   "  [tags]",
   "  COALESCE([vip], CAST(0 AS BIT)) AS [vip]",
   `  ${toUtc("signed_up")}`,
-  "  CAST(([contacted_at] AT TIME ZONE 'UTC') AT TIME ZONE 'GMT Standard Time' AS DATETIME2(7)) AS [contacted_at]",
+  "  CAST((CAST([contacted_at] AS DATETIME2(7)) AT TIME ZONE 'UTC') AT TIME ZONE 'GMT Standard Time' AS DATETIME2(7)) AS [contacted_at]",
   `  ${toUtc("last_seen")}`,
   `  ${toUtc("updated_at")}`,
 ].join(",\n");

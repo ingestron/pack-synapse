@@ -3,16 +3,20 @@
 // fail check that fails (spec/behaviour.md, "checks.sql").
 import type { CheckPlan, Statement, ViewPlan, ViewsPlan } from "../plan/index.js";
 import { comparison, measuredOf, quote, unicode } from "../sql/index.js";
-import { rowsQuery } from "./rows.js";
+import { rowsQuery, viewQuery } from "./rows.js";
 
 /** The script's path in the pack's output folder. */
 export const checksFile = "checks.sql";
 
-/** A view that runs checks, its number in checks.sql, and its name in messages. */
+/**
+ * A view that runs checks, its number in checks.sql, its name in messages, and the variable
+ * that counts the rows it keeps, which table checks read.
+ */
 interface Checked {
   view: ViewPlan;
   t: number;
   shown: string;
+  kept: string;
 }
 
 /** checks.sql for the plan, or undefined when no view runs a check. */
@@ -30,10 +34,12 @@ export function writeChecks(views: ViewsPlan): string | undefined {
   for (const statement of views.statements) {
     if (statement.kind === "use") database = statement.database;
     if (!runsChecks(statement)) continue;
+    const t = checked.length + 1;
     const item = {
       view: statement,
-      t: checked.length + 1,
+      t,
       shown: `${statement.schema}.${statement.name}`,
+      kept: keptOf(statement, t),
     };
     if (database !== written) parts.push(`USE ${quote(database!)};`);
     written = database;
@@ -50,26 +56,53 @@ function runsChecks(statement: Statement): statement is ViewPlan {
 
 const variableOf = (t: number, c: number) => `@check_${t}_${c + 1}`;
 
-/** The table's variables, set by one read of its rows, then by a statement for each other count. */
-function tableBlock({ view, t }: Checked): string {
+/** `@kept_<t>` when the view has drop checks and table checks, else `@rows_<t>`: the same rows. */
+function keptOf(view: ViewPlan, t: number): string {
+  const { drops, checks } = view.quality!;
+  const tables = checks.some((check) => check.kind === "table");
+  return drops.length > 0 && tables ? `@kept_${t}` : `@rows_${t}`;
+}
+
+/**
+ * The table's variables. Row checks count the rows before the drop checks, so they also count
+ * the rows a drop check leaves out; table checks count the rows the view keeps, as Databricks
+ * and DuckDB count them over the stored table. Without a drop check the two are the same rows,
+ * read once.
+ */
+function tableBlock({ view, t, kept }: Checked): string {
   const checks = view.quality!.checks;
   const rows = rowsQuery(view);
-  const variables = checks.map((_, c) => `${variableOf(t, c)} BIGINT`);
-  const aggregates = checks.flatMap((check, c) => {
-    const count = aggregateOf(check);
-    return count === undefined ? [] : [`  ${variableOf(t, c)} = ${count}`];
-  });
-  const others = checks.flatMap((check, c) => otherCount(check, variableOf(t, c), t, rows, view));
+  const separate = kept !== `@rows_${t}`;
+  const keptRows = separate ? viewQuery(view) : rows;
+  const counts = (kind: CheckPlan["kind"]) =>
+    checks.flatMap((check, c) => {
+      const count = check.kind === kind ? aggregateOf(check) : undefined;
+      return count === undefined ? [] : [`  ${variableOf(t, c)} = ${count}`];
+    });
+  const variables = [
+    `@rows_${t}`,
+    ...(separate ? [kept] : []),
+    ...checks.map((_, c) => variableOf(t, c)),
+  ];
+  const others = checks.flatMap((check, c) =>
+    otherCount(check, variableOf(t, c), kept, keptRows, view),
+  );
   return [
     `-- ${view.table}`,
-    `DECLARE @rows_${t} BIGINT, ${variables.join(", ")};`,
-    "SELECT",
-    [`  @rows_${t} = COUNT_BIG(*)`, ...aggregates].join(",\n"),
-    "FROM (",
-    rows,
-    ") AS [rows];",
+    `DECLARE ${variables.map((variable) => `${variable} BIGINT`).join(", ")};`,
+    ...read(rows, [
+      `  @rows_${t} = COUNT_BIG(*)`,
+      ...counts("row"),
+      ...(separate ? [] : counts("table")),
+    ]),
+    ...(separate ? read(keptRows, [`  ${kept} = COUNT_BIG(*)`, ...counts("table")]) : []),
     ...others,
   ].join("\n");
+}
+
+/** One `SELECT` that sets the variables from one read of the rows. */
+function read(rows: string, assignments: string[]): string[] {
+  return ["SELECT", assignments.join(",\n"), "FROM (", rows, ") AS [rows];"];
 }
 
 /** A count that reads the rows with the others: a row check's failing rows, or an aggregate. */
@@ -79,7 +112,13 @@ function aggregateOf(check: CheckPlan): string | undefined {
 }
 
 /** A table check's count that needs a statement of its own. */
-function otherCount(check: CheckPlan, variable: string, t: number, rows: string, view: ViewPlan) {
+function otherCount(
+  check: CheckPlan,
+  variable: string,
+  kept: string,
+  rows: string,
+  view: ViewPlan,
+) {
   if (check.kind === "row" || "aggregate" in check.count) return [];
   if ("query" in check.count) {
     const name = `${quote(view.schema)}.${quote(view.name)}`;
@@ -87,7 +126,7 @@ function otherCount(check: CheckPlan, variable: string, t: number, rows: string,
   }
   const columns = check.count.distinct;
   return [
-    `SELECT ${variable} = @rows_${t} - COUNT_BIG(*) FROM (SELECT DISTINCT ${columns.join(", ")} FROM (`,
+    `SELECT ${variable} = ${kept} - COUNT_BIG(*) FROM (SELECT DISTINCT ${columns.join(", ")} FROM (`,
     rows,
     `) AS [rows] WHERE ${columns.map((column) => `${column} IS NOT NULL`).join(" AND ")}) AS [distinct_rows];`,
   ];
@@ -97,12 +136,12 @@ function otherCount(check: CheckPlan, variable: string, t: number, rows: string,
 function outcome(checked: readonly Checked[]): string {
   const results: string[] = [];
   const stops: string[] = [];
-  for (const { view, t, shown } of checked)
+  for (const { view, t, shown, kept } of checked)
     view.quality!.checks.forEach((check, c) => {
       const variable = variableOf(t, c);
       const failing = check.kind === "row" ? variable : measuredOf(variable);
       const passes =
-        check.kind === "row" ? `${variable} = 0` : comparison(check.check, variable, `@rows_${t}`);
+        check.kind === "row" ? `${variable} = 0` : comparison(check.check, variable, kept);
       results.push(
         `SELECT ${unicode(shown)} AS [table], ${unicode(check.name)} AS [check], ${unicode(check.action)} AS [action], ${failing} AS [failing_rows], CASE WHEN ${passes} THEN 1 ELSE 0 END AS [passed]`,
       );

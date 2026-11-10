@@ -178,7 +178,9 @@ against these pages, and the tests check the text the pack writes.
 - [CAST and CONVERT](https://learn.microsoft.com/en-us/sql/t-sql/functions/cast-and-convert-transact-sql)
   (ms.date 2026-10-13, commit `a52ca41720ddecda8407b735a031a8559e75bf8c`):
   `CAST(<datetimeoffset> AS DATETIME2(7))` keeps the date and time and drops
-  the offset; `CAST('<text>' AS DATE)`, `CAST('<text>' AS DATETIME2(7))` and
+  the offset; `CAST(<x> AS DATETIME2(7))` reads text in an ISO 8601 form as a
+  date and time, so a transform's column that comes out as text converts;
+  `CAST('<text>' AS DATE)`, `CAST('<text>' AS DATETIME2(7))` and
   `CAST(1 AS BIT)`.
 - [Data type precedence](https://learn.microsoft.com/en-us/sql/t-sql/data-types/data-type-precedence-transact-sql)
   (ms.date 2026-10-13, commit `4e3c79e97cd8a72ca8d7162583f5f9163fd81891`) and
@@ -265,6 +267,16 @@ against these pages, and the tests check the text the pack writes.
   (ms.date 2025-08-01, commit `23a90c50b71cd0196cd4fad079078ffe32235e6a`):
   runs one or more SQL statements against Azure Synapse Analytics in a
   Data Factory or Synapse pipeline, and returns their result sets.
+
+Checked locally on 2026-11-10, with synthetic rows and no cloud access, on a
+local SQL Server engine (Azure SQL Edge 15.0.2000.1574), with `OPENROWSET`
+replaced by an inline `VALUES` table, which that engine has instead: the
+`checks.sql` of a table with a required key under `drop`, `unique: true` and
+`rowCount > 0` counts one failing row for the not-null check, `0` duplicates
+for `unique` with one null-id row among the files, and `rowCount` `0`, not
+passed, when every row has a null id. That engine has no `AT TIME ZONE` (it
+needs the CLR, which Azure SQL Edge does not enable), so the time zone forms
+rest on the pages above.
 
 Windows zone names come from the Unicode CLDR, release 49 (published
 2026-10-21), read on 2026-11-10 by `scripts/windows-zones.mjs`:

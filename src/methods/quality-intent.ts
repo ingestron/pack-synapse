@@ -28,6 +28,18 @@ const used = (does: string, source: string, onlyWhere?: LayerDuty): IntentUse =>
 /** Reasons start in lower case: they follow "<What> isn't applied on <pack>: ". */
 const notApplicable = (reason: string): IntentUse => ({ use: "not-applicable", reason });
 
+/**
+ * The zones the definitions package accepts that src/zones/windows.json has no Windows name for
+ * (CLDR release 49 against definitions 1.13's zone list, checked 2026-11-10).
+ */
+export const noWindowsZone: readonly string[] = [
+  "Antarctica/Troll",
+  "CST6CDT",
+  "EST5EDT",
+  "MST7MDT",
+  "PST8PDT",
+];
+
 /** The quality and cleansing entries of the pack. */
 export const qualityIntent: Record<string, IntentUse> = {
   "quality.rules": used(
@@ -51,7 +63,7 @@ export const qualityIntent: Record<string, IntentUse> = {
     "a view can't stop a load; checks.sql checks this rule and raises an error when it runs.",
   ),
   "quality.table-checks": used(
-    "Counted in checks.sql over the rows the view reads: fail raises an error, warn returns the count.",
+    "Counted in checks.sql over the rows the view keeps: fail raises an error, warn returns the count.",
     pages.countBig,
     "check",
   ),
@@ -66,10 +78,14 @@ export const qualityIntent: Record<string, IntentUse> = {
   "cleanse.map": used("A CASE expression in the view's SELECT.", pages.case),
   "cleanse.case": used("UPPER() or LOWER() in the view's SELECT.", pages.upper),
   "cleanse.default": used("COALESCE() in the view's SELECT.", pages.coalesce),
-  "cleanse.timezone": used(
-    "AT TIME ZONE with the zones' Windows names in the view's SELECT; a zone Windows has no name for is not converted.",
-    pages.atTimeZone,
-  ),
+  "cleanse.timezone": {
+    use: "used",
+    does: "AT TIME ZONE with the zones' Windows names in the view's SELECT.",
+    status: ga(pages.atTimeZone),
+    zonesNotApplied: Object.fromEntries(
+      noWindowsZone.map((zone) => [zone, `Windows has no zone for ${zone}.`]),
+    ),
+  },
   deduplicate: used(
     "A ROW_NUMBER() subquery in the view keeps the last row per primary key.",
     pages.rowNumber,

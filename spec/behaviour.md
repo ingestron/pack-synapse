@@ -369,19 +369,20 @@ only when the step maps it with `env:`:
 `<UPPER>` is `NAME` in upper case. A value is reported once, however many
 environments hold it.
 
-The pack also gives a `PACK_NOTICE` for what the definitions package judges
-applied but the pack cannot apply for one value (section "Quality and
-cleansing"). The definitions package judges a whole intent path, such as
-`cleanse.timezone`, and cannot judge one zone or one table check, so the pack
-says it here, in the words of a `NOT_APPLIED` warning:
+The pack also gives a `PACK_NOTICE` for a table check the definitions package
+judges applied but the pack cannot apply (section "Quality and cleansing"). The
+definitions package judges `quality.table-checks` as a whole and cannot judge
+one table check, so the pack says it here, in the words of a `NOT_APPLIED`
+warning:
 
-| Code          | Message                                                                                                                                                                                                                                        | Located at       |
-| ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------- |
-| `PACK_NOTICE` | `Time zone conversion isn't applied on Synapse: Windows has no zone for <zone>.`, hint `The column "<column>" of table "<table>" keeps the times it has. Name a zone that Windows has, or convert the column in a layer another engine keeps.` | The table's file |
-| `PACK_NOTICE` | `The table check "<name>" isn't applied on Synapse: serverless T-SQL has no regular expressions.`, hint `Check the pattern in a layer another engine keeps, or write the check as a sql table check.`                                          | The table's file |
+| Code          | Message                                                                                                                                                                                               | Located at       |
+| ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------- |
+| `PACK_NOTICE` | `The table check "<name>" isn't applied on Synapse: serverless T-SQL has no regular expressions.`, hint `Check the pattern in a layer another engine keeps, or write the check as a sql table check.` | The table's file |
 
-Each is given once for each column, or table check, in the first
-environment's model.
+It is given once for each table check, in the first environment's model. A
+zone Windows has no name for is not a notice: the pack lists it in its
+coverage, and the definitions package reports it (section "Quality and
+cleansing").
 
 `<the place>` names the value: `the database of the views in layer <layer>`,
 `the schema of view [<schema>].[<view>]`, `the name of view …`,
@@ -443,26 +444,26 @@ views and in `checks.sql` (section "Quality and cleansing"). The entries it uses
 record the Microsoft Learn page they rest on, as generally available, checked
 2026-11-10.
 
-| Intent                                                                                | Coverage                   | Reason or what it does                                                                                                  |
-| ------------------------------------------------------------------------------------- | -------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| `history`, `sequence`, `storage`, `retention.time_travel`, `retention.log`, `rescued` | `not-applicable`           | Views keep nothing; they read files or a query each time.                                                               |
-| `load.deletes`                                                                        | `not-applicable`           | Views keep nothing; they read files or a query each time.                                                               |
-| `load` (the rest), `retention.landed_files`                                           | `elsewhere`                | Another pack lands the files.                                                                                           |
-| `audit: run_id`, `window_start`, `window_end`, `source_object`, `source_connection`   | `elsewhere`                | Another pack lands the files.                                                                                           |
-| `audit: loaded_at`, `row_hash`, `source_file`, `source_modified_at`                   | `not-applicable`           | A view adds no columns of its own.                                                                                      |
-| `operations`                                                                          | `not-applicable`           | Synapse serverless runs no jobs.                                                                                        |
-| `quality.rules` (every kind but two)                                                  | `used`, `onlyWhere: check` | A condition in the view for drop, and a count in checks.sql, written from the rule.                                     |
-| `quality.rules: pattern`                                                              | `not-applicable`           | serverless T-SQL has no regular expressions.                                                                            |
-| `quality.rules: items`                                                                | `not-applicable`           | views type no arrays.                                                                                                   |
-| `quality.actions: warn`                                                               | `used`, `onlyWhere: check` | The view keeps the row; checks.sql returns how many rows fail.                                                          |
-| `quality.actions: drop`                                                               | `used`, `onlyWhere: check` | The view's WHERE leaves the row out; checks.sql counts how many rows fail.                                              |
-| `quality.actions: fail`                                                               | `not-applicable`           | a view can't stop a load; checks.sql checks this rule and raises an error when it runs.                                 |
-| `quality.table-checks`                                                                | `used`, `onlyWhere: check` | Counted in checks.sql over the rows the view reads: fail raises an error, warn returns the count.                       |
-| `quality.quarantine`                                                                  | `not-applicable`           | a view keeps no rows to quarantine; checks.sql returns how many rows each drop check leaves out instead.                |
-| `quality.results`                                                                     | `not-applicable`           | a view keeps no results; checks.sql returns each check's counts instead when it runs.                                   |
-| `cleanse.trim`, `empty`, `map`, `case`, `default`                                     | `used`                     | `TRIM()`, `NULLIF(<column>, '')`, a `CASE` expression, `UPPER()` or `LOWER()`, and `COALESCE()` in the view's `SELECT`. |
-| `cleanse.timezone`                                                                    | `used`                     | `AT TIME ZONE` with the zones' Windows names in the view's `SELECT`; a zone Windows has no name for is not converted.   |
-| `deduplicate`                                                                         | `used`                     | A `ROW_NUMBER()` subquery in the view keeps the last row per primary key.                                               |
+| Intent                                                                                | Coverage                       | Reason or what it does                                                                                                             |
+| ------------------------------------------------------------------------------------- | ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `history`, `sequence`, `storage`, `retention.time_travel`, `retention.log`, `rescued` | `not-applicable`               | Views keep nothing; they read files or a query each time.                                                                          |
+| `load.deletes`                                                                        | `not-applicable`               | Views keep nothing; they read files or a query each time.                                                                          |
+| `load` (the rest), `retention.landed_files`                                           | `elsewhere`                    | Another pack lands the files.                                                                                                      |
+| `audit: run_id`, `window_start`, `window_end`, `source_object`, `source_connection`   | `elsewhere`                    | Another pack lands the files.                                                                                                      |
+| `audit: loaded_at`, `row_hash`, `source_file`, `source_modified_at`                   | `not-applicable`               | A view adds no columns of its own.                                                                                                 |
+| `operations`                                                                          | `not-applicable`               | Synapse serverless runs no jobs.                                                                                                   |
+| `quality.rules` (every kind but two)                                                  | `used`, `onlyWhere: check`     | A condition in the view for drop, and a count in checks.sql, written from the rule.                                                |
+| `quality.rules: pattern`                                                              | `not-applicable`               | serverless T-SQL has no regular expressions.                                                                                       |
+| `quality.rules: items`                                                                | `not-applicable`               | views type no arrays.                                                                                                              |
+| `quality.actions: warn`                                                               | `used`, `onlyWhere: check`     | The view keeps the row; checks.sql returns how many rows fail.                                                                     |
+| `quality.actions: drop`                                                               | `used`, `onlyWhere: check`     | The view's WHERE leaves the row out; checks.sql counts how many rows fail.                                                         |
+| `quality.actions: fail`                                                               | `not-applicable`               | a view can't stop a load; checks.sql checks this rule and raises an error when it runs.                                            |
+| `quality.table-checks`                                                                | `used`, `onlyWhere: check`     | Counted in checks.sql over the rows the view keeps: fail raises an error, warn returns the count.                                  |
+| `quality.quarantine`                                                                  | `not-applicable`               | a view keeps no rows to quarantine; checks.sql returns how many rows each drop check leaves out instead.                           |
+| `quality.results`                                                                     | `not-applicable`               | a view keeps no results; checks.sql returns each check's counts instead when it runs.                                              |
+| `cleanse.trim`, `empty`, `map`, `case`, `default`                                     | `used`                         | `TRIM()`, `NULLIF(<column>, '')`, a `CASE` expression, `UPPER()` or `LOWER()`, and `COALESCE()` in the view's `SELECT`.            |
+| `cleanse.timezone`                                                                    | `used`, with `zonesNotApplied` | `AT TIME ZONE` with the zones' Windows names in the view's `SELECT`; each zone Windows has no name for is listed, with its reason. |
+| `deduplicate`                                                                         | `used`                         | A `ROW_NUMBER()` subquery in the view keeps the last row per primary key.                                                          |
 
 The reasons of the quality entries follow the definitions package's message,
 `<What> isn't applied on <pack>: <reason>.`, so they start in lower case.
@@ -551,14 +552,14 @@ applied to the result of the one before, in the model's order. `<x>` starts as
 the column as `<base>` reads it, `[<name>]` (the file's name for it when the
 ingest did not rename it):
 
-| Operation  | Expression                                                                                               |
-| ---------- | -------------------------------------------------------------------------------------------------------- |
-| `timezone` | `CAST((<x> AT TIME ZONE '<from>') AT TIME ZONE '<to>' AS DATETIME2(7))`, with the zones' Windows names   |
-| `trim`     | `TRIM(<x>)`                                                                                              |
-| `empty`    | `NULLIF(<x>, '')`                                                                                        |
-| `map`      | `CASE <x> WHEN <key> THEN <value> … ELSE <x> END`, the keys in the order written; a null value is `NULL` |
-| `case`     | `UPPER(<x>)` or `LOWER(<x>)`                                                                             |
-| `default`  | `COALESCE(<x>, <value>)`                                                                                 |
+| Operation  | Expression                                                                                                                   |
+| ---------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `timezone` | `CAST((CAST(<x> AS DATETIME2(7)) AT TIME ZONE '<from>') AT TIME ZONE '<to>' AS DATETIME2(7))`, with the zones' Windows names |
+| `trim`     | `TRIM(<x>)`                                                                                                                  |
+| `empty`    | `NULLIF(<x>, '')`                                                                                                            |
+| `map`      | `CASE <x> WHEN <key> THEN <value> … ELSE <x> END`, the keys in the order written; a null value is `NULL`                     |
+| `case`     | `UPPER(<x>)` or `LOWER(<x>)`                                                                                                 |
+| `default`  | `COALESCE(<x>, <value>)`                                                                                                     |
 
 A value is written for the column's `logicalType`: a number as it is for
 `integer` and `number` (a `map` key, which is text, too, when it reads as a
@@ -576,8 +577,10 @@ difference; without it, Synapse can match where Databricks does not. Text
 values take the database's code page, as `views.sql`'s other text does; a
 database with a UTF-8 collation keeps every character.
 
-**Time zones.** `<x> AT TIME ZONE '<from>'` reads the column's wall-clock time
-in the zone it was written in and gives a `datetimeoffset`;
+**Time zones.** The column is cast to `DATETIME2(7)` first: a view over files
+already types it so, and a transform's column may come out as text.
+`<x> AT TIME ZONE '<from>'` then reads the column's wall-clock time in the zone
+it was written in and gives a `datetimeoffset`;
 `AT TIME ZONE '<to>'` converts it to the target zone, and the cast gives the
 wall-clock time there as `DATETIME2(7)` again. T-SQL names zones by their
 Windows names (`sys.time_zone_info`), so the pack maps each IANA name the
@@ -600,13 +603,17 @@ model gives to its Windows name with `src/zones/windows.json`:
   `FLE Standard Time`, and `UTC` is `UTC`.
 - `Europe/London` is `GMT Standard Time`.
 
-A zone the table does not name, such as `Antarctica/Troll`, has no Windows
-zone. A column converted from or to it is not converted: its expression
-starts from `<x>` itself, and the column keeps the times it has. The
-definitions package judges `cleanse.timezone` for the pack as a whole and has
-no way to judge one zone, so it still takes the table's zone to be the target
-zone; `buildEnvironments` gives a `PACK_NOTICE` for each such column, in the
-words of a `NOT_APPLIED` warning (section 10).
+A zone the table does not name has no Windows zone. Against the zones the
+definitions package accepts, these are `Antarctica/Troll`, `CST6CDT`,
+`EST5EDT`, `MST7MDT` and `PST8PDT`. The pack lists them in its
+`cleanse.timezone` coverage entry, as `zonesNotApplied`, each with the reason
+`Windows has no zone for <zone>.` (definitions specification, sections 6.3 and
+11.5). So the definitions package reports a conversion from or to one of them
+`NOT_APPLIED` at the column, `Time zone conversion isn't applied on synapse:
+Windows has no zone for <zone>.`, and the column stays in its `from` zone: the
+table keeps the zone it was in, and a later table converts it. The pack writes
+no conversion for such a column; its expression starts from `<x>` itself. A
+test checks that every listed zone is missing from the table.
 
 Around a clock change, T-SQL moves a wall time in the hour that is skipped in
 spring forward by the length of the gap and gives it the offset after the
@@ -688,29 +695,32 @@ this rule and raises an error when it runs.", the view keeps the row, and
 A table in a layer whose `does` lists `check` runs its contract's table checks
 in `checks.sql`. The pack declares no `checks` capability, so the definitions
 package gives a Synapse table its table checks (and `unique`) whatever the
-Platform's `manage.checks` says (definitions specification, section 7.1). Each
-is counted over the rows as Databricks counts it, in T-SQL:
+Platform's `manage.checks` says (definitions specification, section 7.1).
+Databricks and DuckDB count table checks over the table they store, after the
+rows `drop` leaves out; so does this pack, over the rows the view keeps
+(`<kept>`, under "checks.sql"). Each is counted with the metric Databricks
+uses, in T-SQL:
 
-| `metric`                       | Count                                                                                                        |
-| ------------------------------ | ------------------------------------------------------------------------------------------------------------ |
-| `rowCount`                     | `COUNT_BIG(*)`                                                                                               |
-| `duplicateValues`, one column  | `COUNT_BIG(*) - COUNT_BIG(DISTINCT <c>)`                                                                     |
-| `duplicateValues`, several     | `@rows_<t> - COUNT_BIG(*)` over `SELECT DISTINCT <c>, … FROM (<rows>) AS [rows] WHERE <c> IS NOT NULL AND …` |
-| `duplicateValues`, whole row   | as several, over the contract's columns                                                                      |
-| `nullValues`                   | `COUNT_BIG(CASE WHEN <c> IS NULL THEN 1 END)`                                                                |
-| `missingValues`                | `COUNT_BIG(CASE WHEN <c> IS NULL OR <c> IN (<v>, …) THEN 1 END)`; without a list, as `nullValues`            |
-| `invalidValues`, `validValues` | `COUNT_BIG(CASE WHEN <c> IS NOT NULL AND NOT (<c> IN (<v>, …)) THEN 1 END)`                                  |
-| `invalidValues`, `pattern`     | not applied: serverless T-SQL has no regular expressions (a `PACK_NOTICE`, section 10)                       |
-| `sql`                          | the rule's query, with `${object}` replaced by the view's name, `[<schema>].[<view>]`                        |
+| `metric`                       | Count                                                                                                           |
+| ------------------------------ | --------------------------------------------------------------------------------------------------------------- |
+| `rowCount`                     | `COUNT_BIG(*)`                                                                                                  |
+| `duplicateValues`, one column  | `COUNT_BIG(*) - COUNT_BIG(DISTINCT <c>)`                                                                        |
+| `duplicateValues`, several     | `<kept count> - COUNT_BIG(*)` over `SELECT DISTINCT <c>, … FROM (<kept>) AS [rows] WHERE <c> IS NOT NULL AND …` |
+| `duplicateValues`, whole row   | as several, over the contract's columns                                                                         |
+| `nullValues`                   | `COUNT_BIG(CASE WHEN <c> IS NULL THEN 1 END)`                                                                   |
+| `missingValues`                | `COUNT_BIG(CASE WHEN <c> IS NULL OR <c> IN (<v>, …) THEN 1 END)`; without a list, as `nullValues`               |
+| `invalidValues`, `validValues` | `COUNT_BIG(CASE WHEN <c> IS NOT NULL AND NOT (<c> IN (<v>, …)) THEN 1 END)`                                     |
+| `invalidValues`, `pattern`     | not applied: serverless T-SQL has no regular expressions (a `PACK_NOTICE`, section 10)                          |
+| `sql`                          | the rule's query, with `${object}` replaced by the view's name, `[<schema>].[<view>]`                           |
 
 `COUNT_BIG(DISTINCT …)` leaves nulls out. Spark's `count(DISTINCT a, b)`
 leaves out a row with a null part, so several columns, and the whole row,
 count the distinct rows that have no null part, and every other row counts
-as a duplicate, as on Databricks. A `sql` check reads the view, so it sees the
-rows the view gives, after its `drop` checks.
+as a duplicate, as on Databricks. A `sql` check reads the view, which gives the
+same rows.
 
 The rule compares the count, `ISNULL(<count>, 0)`, or with `unit: percent`
-`CASE WHEN @rows_<t> = 0 THEN 0 ELSE ISNULL(<count>, 0) * 100.0 / @rows_<t> END`,
+`CASE WHEN <kept count> = 0 THEN 0 ELSE ISNULL(<count>, 0) * 100.0 / <kept count> END`,
 by its operator: `=`, `<>`, `>`, `>=`, `<`, `<=`, `BETWEEN <low> AND <high>`
 and `NOT BETWEEN`. A table check's `fail` is applied: `checks.sql` raises an
 error when it does not pass, and its `warn` returns the count.
@@ -720,8 +730,9 @@ error when it does not pass, and its `warn` returns the count.
 `checks.sql` is one batch, with no `GO`, so it runs as it is in sqlcmd, in an
 Azure Data Factory or Synapse pipeline's Script activity, or in any tool
 that sends T-SQL. It reads the files through `OPENROWSET` with the view's
-columns and cleansing, not through the view, so it also counts the rows a
-`drop` check leaves out of the view. It is, line by line:
+columns and cleansing, not through the view, so its row checks also count the
+rows a `drop` check leaves out of the view; its table checks count the rows the
+view keeps. It is, line by line:
 
 1. comments naming the project, and no environment, saying not to edit it,
    that it counts each check's failing rows and returns one row per check,
@@ -731,13 +742,15 @@ columns and cleansing, not through the view, so it also counts the rows a
    counting from 1:
    - `USE [<database>];` when the table's database is not the one before;
    - `-- <table>`, the table's name in the definitions;
-   - `DECLARE @rows_<t> BIGINT, @check_<t>_1 BIGINT, …;`, a variable per
-     check, its row checks first, then its table checks, `c` counting from 1;
+   - `DECLARE @rows_<t> BIGINT, [@kept_<t> BIGINT, ]@check_<t>_1 BIGINT, …;`,
+     a variable per check, its row checks first, then its table checks, `c`
+     counting from 1. `@kept_<t>` is declared when the view has `drop` checks
+     and table checks; `<kept count>` is then `@kept_<t>`, else `@rows_<t>`;
    - one `SELECT` that reads `<rows>` once and sets `@rows_<t>` to
      `COUNT_BIG(*)`, each row check's variable to
      `COUNT_BIG(CASE WHEN <condition> THEN NULL ELSE 1 END)`, the rows that
-     fail it (a condition that is unknown fails), and each table check's that
-     is an aggregate to its count:
+     fail it (a condition that is unknown fails), and, without `drop` checks,
+     each table check's that is an aggregate to its count:
      ```sql
      SELECT
        @rows_<t> = COUNT_BIG(*),
@@ -747,8 +760,11 @@ columns and cleansing, not through the view, so it also counts the rows a
      <rows>
      ) AS [rows];
      ```
+   - with `drop` checks and table checks, a second `SELECT` of the same form
+     over `<kept>`, which sets `@kept_<t>` to `COUNT_BIG(*)` and each table
+     check's that is an aggregate to its count;
    - then, for each table check that is not an aggregate, a statement of its
-     own: `SELECT @check_<t>_<c> = @rows_<t> - COUNT_BIG(*) FROM (SELECT DISTINCT … ) AS [distinct_rows];`,
+     own: `SELECT @check_<t>_<c> = <kept count> - COUNT_BIG(*) FROM (SELECT DISTINCT … FROM (<kept>) …) AS [distinct_rows];`,
      or `SET @check_<t>_<c> = (<query>);` for a `sql` check;
 3. one result, a `SELECT` per check joined by `UNION ALL`:
    `SELECT N'<schema>.<view>' AS [table], N'<name>' AS [check], N'<action>' AS [action], <failing> AS [failing_rows], CASE WHEN <passes> THEN 1 ELSE 0 END AS [passed]`,
@@ -764,7 +780,10 @@ columns and cleansing, not through the view, so it also counts the rows a
    returned before it.
 
 `<rows>` is the view's rows before its `drop` checks: `<base>`, deduplicated
-when the table deduplicates. Names and text in it, and the database, are
+when the table deduplicates. `<kept>` is the view's query, the rows it keeps;
+without `drop` checks, it is `<rows>`. Row checks count `<rows>`, so they also
+count the rows a `drop` check leaves out; table checks count `<kept>`, as the
+other packs count the table they store. Names and text in it, and the database, are
 those of `views.sql`, with the same SQLCMD variables where environments
 differ. A table that runs no check is not in `checks.sql`.
 
