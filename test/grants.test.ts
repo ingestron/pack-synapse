@@ -79,16 +79,6 @@ describe("grants in views.sql", () => {
       { code: "NOT_APPLIED", message: maskNotApplied },
     ]);
   });
-
-  it("grants nothing on a view served over landed files, which no step keeps", () => {
-    const flow = base["flow.yaml"]!.replace(
-      "source: erp\n",
-      "source: erp\nstore: { uses: none }\nserve: { uses: synapse-serve }\n",
-    );
-    const sql = views({ ...accessFiles(), "flow.yaml": flow });
-    expect(sql).toContain("CREATE OR ALTER VIEW [bronze].[orders] AS");
-    expect(sql).not.toContain("GRANT");
-  });
 });
 
 describe("one contract on a view and on a table another pack keeps", () => {

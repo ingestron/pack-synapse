@@ -66,7 +66,9 @@ function reportUserLines(
   const credentials = sources.map(([name]) => credential(name));
   const granted = grantedViews(model).filter(({ access }) => access.grants.length > 0);
   if (granted.length === 0) return [reportUsersLine(tables, "schemas", credentials)];
-  const others = tables.filter((table) => !granted.some((item) => item.table === table));
+  // A view with exact grants and no role is left out: views.sql revokes its SELECT each run.
+  const withAccess = grantedViews(model).map((item) => item.table);
+  const others = tables.filter((table) => !withAccess.includes(table));
   const locations = sources.map(([, location]) => location);
   return [
     ...(others.length > 0 ? [reportUsersLine(others, "views", credentials)] : []),

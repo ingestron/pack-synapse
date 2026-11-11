@@ -40,7 +40,7 @@ function statementProblems(statement: Statement): string[] {
   return [
     ...([statementText(statement), ...quality].some((text) => text.includes("$("))
       ? [
-          `${owner} would hold "$(", which sqlcmd reads as the start of a variable such as $(database), even in a string; leave "$(" out of its names, path, columns and code`,
+          `${owner} would hold "$(", which sqlcmd reads as the start of a variable such as $(database), even in a string; leave "$(" out of its names, path, columns, code and principals`,
         ]
       : []),
     ...commandLines(textsOf(statement)).map(

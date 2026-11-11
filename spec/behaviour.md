@@ -525,12 +525,12 @@ files it got before.
 
 A view gets grants when all of these hold:
 
-- `synapse-view` keeps the table, or `synapse-serve` serves a table that a
-  store step of another pack keeps. The definitions package judges a kept
-  view's access by the view, and judges a served table a second time by its
-  serve step (definitions specification, section 8.2), so the masks and
-  filters a served view cannot apply are reported for it. A view served over a
-  table with no store step gets none: no step of Synapse is judged there;
+- `synapse-view` keeps the table, or `synapse-serve` serves it, over a table
+  another pack keeps or over the landed files. The definitions package judges
+  a kept view's access by the view, and judges a served table by its serve
+  step, a second time when another pack keeps it (definitions specification,
+  section 8.2), so the masks and filters a served view cannot apply are
+  reported for it;
 - `synapse.manage.grants` is on;
 - the table has `access`, and the judgement of the view's step does not list
   `grants`: the table's `notApplied` for a kept view, the serve step's
@@ -623,9 +623,11 @@ locations are every data source of the project, since a transform's view
 reads its inputs' files. A name holding a backtick is written as a code span
 of two backticks.
 
-Before those lines, when some views are granted to no principal, the line
-about report users stays for those views. It names the views, not their
-schemas, since SELECT on a schema would reach the granted views too:
+Before those lines, when some views get no access from views.sql at all, the
+line about report users stays for those views. It names the views, not their
+schemas, since SELECT on a schema would reach the granted views too. A view
+with exact grants and no role is not named: views.sql revokes such a SELECT
+each time it runs (below):
 
 > In `<database>`, give each report user SELECT on the views
 > `[<schema>].[<view>]`, …, REFERENCES on the database scoped credential
@@ -643,7 +645,11 @@ With exact grants on any view, a section "Exact grants" has the intro:
 > given WITH GRANT OPTION. Before turning this on, move any access given by
 > hand into the contracts.
 
-and one line per view, `` `[<schema>].[<view>]` in `<database>` ``.
+and one line per view, `` `[<schema>].[<view>]` in `<database>` ``. For a
+view that is granted to no principal, the line goes on:
+
+> : no contract or layer names a role for it, so no one can read it except its
+> owners and those given access on its schema or database.
 
 A project without grants has the request it had before.
 

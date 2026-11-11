@@ -54,6 +54,22 @@ describe("request", () => {
   });
 });
 
+/** A customers contract with no roles, and the flow that views it beside orders. */
+const customersContract = [
+  "apiVersion: v3.1.0",
+  "kind: DataContract",
+  "id: customers",
+  "version: 1.0.0",
+  "status: active",
+  "schema:",
+  "  - name: customers",
+  "    logicalType: object",
+  "    properties:",
+  "      - { name: id, logicalType: integer, primaryKey: true }",
+  "",
+].join("\n");
+const withCustomers = `${base["flow.yaml"]!.trimEnd()}\n  customers: { object: customers, contract: customers }\n`;
+
 describe("request with grants", () => {
   const sections = (files: Record<string, string>) =>
     synapse.request!(generate(files).model as ResolvedModel);
@@ -94,24 +110,10 @@ describe("request with grants", () => {
   });
 
   it("keeps the report users line for the views granted to no principal, naming them", () => {
-    const customers = [
-      "apiVersion: v3.1.0",
-      "kind: DataContract",
-      "id: customers",
-      "version: 1.0.0",
-      "status: active",
-      "schema:",
-      "  - name: customers",
-      "    logicalType: object",
-      "    properties:",
-      "      - { name: id, logicalType: integer, primaryKey: true }",
-      "",
-    ].join("\n");
-    const flow = `${base["flow.yaml"]!.trimEnd()}\n  customers: { object: customers, contract: customers }\n`;
     const files = {
       ...accessFiles({ roles: ["  - { role: marketing-analysts, access: read }"] }),
-      "customers.yaml": customers,
-      "flow.yaml": flow,
+      "customers.yaml": customersContract,
+      "flow.yaml": withCustomers,
     };
     expect(sections(files).find((section) => section.title === "Report users")!.lines).toEqual([
       "In `erp_dev`, give each report user SELECT on the view `[bronze].[customers]`, REFERENCES on the database scoped credential `landing_identity`, and ADMINISTER DATABASE BULK OPERATIONS, which views over files need.",
@@ -119,6 +121,28 @@ describe("request with grants", () => {
         "`marketing-analysts-dev`",
         "`CREATE USER [marketing-analysts-dev] FROM EXTERNAL PROVIDER`",
       ),
+    ]);
+  });
+
+  it("names no view with exact grants and no role for report users, and says who can read it", () => {
+    const files = {
+      ...accessFiles({
+        grants: "exact",
+        roles: ["  - { role: marketing-analysts, access: read }"],
+      }),
+      "customers.yaml": customersContract,
+      "flow.yaml": withCustomers,
+    };
+    const all = sections(files);
+    expect(all.find((section) => section.title === "Report users")!.lines).toEqual([
+      user(
+        "`marketing-analysts-dev`",
+        "`CREATE USER [marketing-analysts-dev] FROM EXTERNAL PROVIDER`",
+      ),
+    ]);
+    expect(all.at(-1)!.lines).toEqual([
+      "`[bronze].[orders]` in `erp_dev`",
+      "`[bronze].[customers]` in `erp_dev`: no contract or layer names a role for it, so no one can read it except its owners and those given access on its schema or database.",
     ]);
   });
 

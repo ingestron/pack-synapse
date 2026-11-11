@@ -26,15 +26,13 @@ export function grantsOn(model: ResolvedModel): boolean {
 
 /**
  * What the definitions package judged the table's Synapse step does not apply: the table's
- * own `notApplied` for a view synapse-view keeps; the serve step's for one synapse-serve serves
- * over a table another pack's store step keeps, which is judged a second time by its serve
- * step. Undefined for any other table: no step of Synapse is judged there.
+ * own `notApplied` for a view synapse-view keeps; the serve step's for one synapse-serve
+ * serves, which is judged by its serve step whether another pack keeps the table or no step
+ * does (definitions specification, section 8.2). Undefined for any other table.
  */
 function judgementOf(table: ResolvedTable): NotApplied[] | undefined {
   if (table.store?.method === "synapse-view") return table.notApplied ?? [];
-  const { store, serve } = table;
-  if (serve?.method === "synapse-serve" && store && store.pack !== serve.pack)
-    return serve.notApplied ?? [];
+  if (table.serve?.method === "synapse-serve") return table.serve.notApplied ?? [];
   return undefined;
 }
 

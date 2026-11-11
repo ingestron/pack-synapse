@@ -52,13 +52,17 @@ export function exactSection(granted: readonly Granted[]): RequestSection[] {
       title: "Exact grants",
       intro:
         "Exact grants are on. Each time views.sql runs, it removes every permission granted directly on these views to anyone their contracts and layers don't name, and every permission other than SELECT to those they do. It keeps ownership, permissions on schemas and databases, denials, and permissions given WITH GRANT OPTION. Before turning this on, move any access given by hand into the contracts.",
-      lines: exact.map(
-        ({ table: { fullName } }) =>
-          `${code(`${quote(fullName.schema)}.${quote(fullName.table)}`)} in ${code(fullName.catalog)}`,
-      ),
+      lines: exact.map(({ table: { fullName }, access }) => {
+        const view = `${code(`${quote(fullName.schema)}.${quote(fullName.table)}`)} in ${code(fullName.catalog)}`;
+        return access.grants.length > 0 ? view : `${view}${unread}`;
+      }),
     },
   ];
 }
+
+/** What the request says of a view exact grants reach that no role is granted on. */
+const unread =
+  ": no contract or layer names a role for it, so no one can read it except its owners and those given access on its schema or database.";
 
 /** A Markdown code span; one holding a backtick is fenced with two. */
 export function code(text: string): string {

@@ -1,6 +1,7 @@
 // What sqlcmd would read in views.sql as something other than T-SQL is refused in
 // every environment: a line that is one of its commands, and `$(`.
 import { describe, expect, it } from "vitest";
+import { accessFiles } from "../access-project.js";
 import { erpEnvironments } from "../fold-helpers.js";
 import { base, problems } from "../project.js";
 
@@ -88,6 +89,23 @@ describe("$( in a view", () => {
         code: "PACK_CHECK",
         message: expect.stringContaining(
           'the view of table "totals" would hold "$(", which sqlcmd reads as the start of a variable such as $(database), even in a string',
+        ),
+      },
+    ]);
+  });
+});
+
+describe("$( in a principal", () => {
+  it("is refused, naming principals among what to leave it out of", () => {
+    const files = accessFiles({
+      roles: ["  - { role: auditors }"],
+      principals: "principals: { auditors: 'ops$(team)' }",
+    });
+    expect(problems(files).filter((item) => item.code === "PACK_CHECK")).toEqual([
+      {
+        code: "PACK_CHECK",
+        message: expect.stringContaining(
+          'the view of table "orders" would hold "$(", which sqlcmd reads as the start of a variable such as $(database), even in a string; leave "$(" out of its names, path, columns, code and principals',
         ),
       },
     ]);
