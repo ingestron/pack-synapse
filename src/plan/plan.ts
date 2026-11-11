@@ -101,16 +101,14 @@ function viewOf(model: ResolvedModel, table: ResolvedTable): ViewPlan | undefine
   // Resolved types are Synapse's only when Synapse provides the defaults.
   const resolvedTypes = model.standard.packs[0]?.startsWith("synapse@") ?? false;
   const names = { table: table.name, layer: table.layer, ...twoPart(table) };
-  if (table.serve?.method === "synapse-serve")
-    return { kind: "view", ...names, query: filesPlan(table, table.serve, { resolvedTypes }) };
-  if (table.store?.method !== "synapse-view") return undefined;
   const access = viewAccess(model, table);
-  return {
-    kind: "view",
-    ...names,
-    ...keptView(model, table, resolvedTypes),
-    ...(access && { access }),
-  };
+  const granted = access && { access };
+  if (table.serve?.method === "synapse-serve") {
+    const query = filesPlan(table, table.serve, { resolvedTypes });
+    return { kind: "view", ...names, query, ...granted };
+  }
+  if (table.store?.method !== "synapse-view") return undefined;
+  return { kind: "view", ...names, ...keptView(model, table, resolvedTypes), ...granted };
 }
 
 /** The query of a view synapse-view keeps, and what it cleanses, deduplicates and checks. */

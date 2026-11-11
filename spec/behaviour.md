@@ -438,7 +438,8 @@ specification, section 2.1).
   `views.sql` of a project with grants, of one with exact grants, and of one
   with a principal holding `]`; a contract used by a kept view and a table
   another pack keeps, where the mask is `NOT_APPLIED` once, naming only the
-  view; no grants on a served view; the same files with the switch off; the
+  view; grants on a served view, with its mask reported for it, and none on
+  one with no store step; the same files with the switch off; the
   request; the fold with a principal per environment, against the sqlcmd
   model, and every batch through the T-SQL check; and what the fold refuses.
 - **sqlcmd commands** (`test/sqlcmd-checks.test.ts`): each command line in
@@ -524,17 +525,22 @@ files it got before.
 
 A view gets grants when all of these hold:
 
-- `synapse-view` keeps the table. A view `synapse-serve` serves gets none:
-  the pack that stores the table is the one the definitions package judges
-  its access against, so the view's masks and filters would not be reported;
+- `synapse-view` keeps the table, or `synapse-serve` serves a table that a
+  store step of another pack keeps. The definitions package judges a kept
+  view's access by the view, and judges a served table a second time by its
+  serve step (definitions specification, section 8.2), so the masks and
+  filters a served view cannot apply are reported for it. A view served over a
+  table with no store step gets none: no step of Synapse is judged there;
 - `synapse.manage.grants` is on;
-- the table has `access`, and its `notApplied` does not list `grants`.
+- the table has `access`, and the judgement of the view's step does not list
+  `grants`: the table's `notApplied` for a kept view, the serve step's
+  `notApplied` for a served one.
 
 Each role in the table's `access.grants` is granted once, in the order the
 access names it. `write` gives SELECT only: the definitions package reports
 it as `NOT_APPLIED`, "views are read-only.". Exact grants apply when
-`access.exact` is true and `notApplied` lists neither `grants` nor `exact`.
-With exact grants and no role, the view gets exact grants alone.
+`access.exact` is true and the same judgement lists neither `grants` nor
+`exact`. With exact grants and no role, the view gets exact grants alone.
 
 ### In views.sql
 
@@ -601,9 +607,9 @@ every environment is written as it is, `]` and `'` included.
 
 ### Request
 
-When any view gets grants, the report users section has one line for each
-principal those views are granted to, in the order first granted, in place of
-the line about report users:
+When any view is granted to a principal, the report users section has one
+line for each principal those views are granted to, in the order first
+granted:
 
 > `<principal>`: in `<database>`, create it as a database user from the
 > external provider (`CREATE USER [<principal>] FROM EXTERNAL PROVIDER`), then
@@ -616,6 +622,17 @@ The databases are those of the views granted to it, and the credentials and
 locations are every data source of the project, since a transform's view
 reads its inputs' files. A name holding a backtick is written as a code span
 of two backticks.
+
+Before those lines, when some views are granted to no principal, the line
+about report users stays for those views. It names the views, not their
+schemas, since SELECT on a schema would reach the granted views too:
+
+> In `<database>`, give each report user SELECT on the views
+> `[<schema>].[<view>]`, …, REFERENCES on the database scoped credential
+> `<credential>`, and ADMINISTER DATABASE BULK OPERATIONS, which views over
+> files need.
+
+With no view granted to a principal, the line is as before, with the schemas.
 
 With exact grants on any view, a section "Exact grants" has the intro:
 

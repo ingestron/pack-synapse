@@ -93,6 +93,35 @@ describe("request with grants", () => {
     });
   });
 
+  it("keeps the report users line for the views granted to no principal, naming them", () => {
+    const customers = [
+      "apiVersion: v3.1.0",
+      "kind: DataContract",
+      "id: customers",
+      "version: 1.0.0",
+      "status: active",
+      "schema:",
+      "  - name: customers",
+      "    logicalType: object",
+      "    properties:",
+      "      - { name: id, logicalType: integer, primaryKey: true }",
+      "",
+    ].join("\n");
+    const flow = `${base["flow.yaml"]!.trimEnd()}\n  customers: { object: customers, contract: customers }\n`;
+    const files = {
+      ...accessFiles({ roles: ["  - { role: marketing-analysts, access: read }"] }),
+      "customers.yaml": customers,
+      "flow.yaml": flow,
+    };
+    expect(sections(files).find((section) => section.title === "Report users")!.lines).toEqual([
+      "In `erp_dev`, give each report user SELECT on the view `[bronze].[customers]`, REFERENCES on the database scoped credential `landing_identity`, and ADMINISTER DATABASE BULK OPERATIONS, which views over files need.",
+      user(
+        "`marketing-analysts-dev`",
+        "`CREATE USER [marketing-analysts-dev] FROM EXTERNAL PROVIDER`",
+      ),
+    ]);
+  });
+
   it("asks for what it asked before when the switch is off", () => {
     const off = sections(accessFiles({ manage: false, grants: "exact" }));
     expect(off.map((section) => section.title)).toEqual([
