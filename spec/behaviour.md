@@ -515,6 +515,12 @@ sections 7.1 and 8.2). The pack reads that judgement and never judges again.
 | ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `synapse.manage.grants` | Grants SELECT on each view to the principals its contract's roles and its layer name, in `views.sql` after the view; with exact grants, revokes what they do not give. Default: `false`. |
 
+The capability `needs`: the identity that runs `views.sql` owns the views,
+or has CONTROL on them through `db_owner` or on their schema or database, so
+it may grant and revoke on them; with exact grants, it keeps its own direct
+permissions on a view, but not those of a group it belongs to; and each
+principal is a database user in the view's database.
+
 The pack declares the `grants` capability, so a role on a view while the
 switch is off is a `CAPABILITY_OFF` warning with the fix `Turn on
 manage.grants`, which sets `synapse.manage.grants` (definitions
@@ -569,6 +575,7 @@ WHERE [permissions].[class] = 1
   AND [schemas].[name] = N'<schema>'
   AND [objects].[name] = N'<view>'
   AND [permissions].[permission_name] NOT LIKE N'%[^A-Z ]%'
+  AND [principals].[name] <> USER_NAME()
   AND NOT ([permissions].[permission_name] = N'SELECT' AND [principals].[name] IN (N'<principal>', …));
 IF @revoke IS NOT NULL EXEC (@revoke);
 GO
@@ -585,6 +592,13 @@ revoke a permission only when every one of these holds:
   which would also take it from the principals it was passed on to;
 - its name is upper-case letters and spaces, so nothing else that
   `sys.database_permissions` holds reaches the statement;
+- it is not granted to the database user that runs `views.sql`, which
+  `USER_NAME()` gives: SQL Server refuses to revoke a permission from
+  yourself, and the batch would otherwise take away the rights the script
+  needs. `USER_NAME()` is the user the script runs as, not a group it reaches
+  the database through, so a permission granted directly on a view to such a
+  group is revoked like any other; and when `USER_NAME()` is `NULL`, the
+  condition holds for no row and nothing is revoked;
 - it is not SELECT to a principal the view grants to.
 
 Ownership is never revoked: an owner's rights are not rows of
@@ -641,9 +655,10 @@ With exact grants on any view, a section "Exact grants" has the intro:
 > Exact grants are on. Each time views.sql runs, it removes every permission
 > granted directly on these views to anyone their contracts and layers don't
 > name, and every permission other than SELECT to those they do. It keeps
-> ownership, permissions on schemas and databases, denials, and permissions
-> given WITH GRANT OPTION. Before turning this on, move any access given by
-> hand into the contracts.
+> ownership, permissions on schemas and databases, denials, permissions
+> given WITH GRANT OPTION, and those of the database user that runs
+> views.sql, but not those of a group that user belongs to. Before turning
+> this on, move any access given by hand into the contracts.
 
 and one line per view, `` `[<schema>].[<view>]` in `<database>` ``. For a
 view that is granted to no principal, the line goes on:

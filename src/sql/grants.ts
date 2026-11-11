@@ -25,7 +25,8 @@ export function grantStatements(view: ViewName, principals: readonly string[]): 
 /**
  * The batch that revokes each permission granted directly on the view, other than SELECT to
  * `kept`. Only plain grants on the object itself are revoked: never a DENY, a permission given
- * WITH GRANT OPTION, one on a column, schema or database, or ownership, which is not a row.
+ * WITH GRANT OPTION, one on a column, schema or database, ownership, which is not a row, or
+ * one granted to the user that runs the script.
  * @example revokeStatement({ schema: "bronze", name: "orders" }, ["marketing-analysts"])
  */
 export function revokeStatement(view: ViewName, kept: readonly string[]): string {
@@ -38,6 +39,8 @@ export function revokeStatement(view: ViewName, kept: readonly string[]): string
     `  AND [objects].[name] = N${literal(view.name)}`,
     // Only names of plain words reach the statement.
     "  AND [permissions].[permission_name] NOT LIKE N'%[^A-Z ]%'",
+    // The user that runs the script: SQL Server refuses to revoke from yourself.
+    "  AND [principals].[name] <> USER_NAME()",
     ...(kept.length > 0
       ? [
           `  AND NOT ([permissions].[permission_name] = N'SELECT' AND [principals].[name] IN (${kept.map((principal) => `N${literal(principal)}`).join(", ")}))`,

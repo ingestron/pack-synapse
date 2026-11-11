@@ -44,7 +44,7 @@ export const capabilities: Capability[] = [
     title: "Grants",
     does: "Grants SELECT on each view to the principals of its contract's roles and its layer's, in views.sql after the view; with exact grants, revokes what they do not give.",
     needs: [
-      "The identity that runs views.sql owns the views or has CONTROL on them, as a member of db_owner has, so it may grant and revoke on them",
+      "The identity that runs views.sql owns the views, or has CONTROL on them through db_owner or on their schema or database, so it may grant and revoke on them; with exact grants, it keeps its own direct permissions on a view, but not those of a group it belongs to",
       "Each principal is a database user in the view's database; ingestron request lists them",
     ],
   },

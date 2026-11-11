@@ -104,7 +104,7 @@ describe("request with grants", () => {
     expect(sections(accessFiles({ grants: "exact" })).at(-1)).toEqual({
       title: "Exact grants",
       intro:
-        "Exact grants are on. Each time views.sql runs, it removes every permission granted directly on these views to anyone their contracts and layers don't name, and every permission other than SELECT to those they do. It keeps ownership, permissions on schemas and databases, denials, and permissions given WITH GRANT OPTION. Before turning this on, move any access given by hand into the contracts.",
+        "Exact grants are on. Each time views.sql runs, it removes every permission granted directly on these views to anyone their contracts and layers don't name, and every permission other than SELECT to those they do. It keeps ownership, permissions on schemas and databases, denials, permissions given WITH GRANT OPTION, and those of the database user that runs views.sql, but not those of a group that user belongs to. Before turning this on, move any access given by hand into the contracts.",
       lines: ["`[bronze].[orders]` in `erp_dev`"],
     });
   });

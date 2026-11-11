@@ -321,6 +321,20 @@ checked against these pages, and the tests check the text the pack writes.
   `sys.database_principals`; example C finds the permissions on one object by
   joining `sys.objects` and `sys.schemas` by name. The permissions of fixed
   database roles are not rows, and neither is ownership.
+- The same page, under "Built-in/system security & identity functions",
+  lists the functions serverless SQL pools support: `CURRENT_USER`,
+  `HAS_DBACCESS`, `HAS_PERMS_BY_NAME`, `IS_MEMBER`, `IS_ROLEMEMBER`,
+  `IS_SRVROLEMEMBER`, `SESSION_USER`, `SESSION_CONTEXT`, `SUSER_NAME`,
+  `SUSER_SNAME`, `SYSTEM_USER`, `USER`, `USER_NAME`, `EXECUTE AS` and
+  `REVERT`. `DATABASE_PRINCIPAL_ID` and `USER_ID` are not listed, so exact
+  grants exempt the user that runs `views.sql` by `USER_NAME()`.
+- [USER_NAME](https://learn.microsoft.com/en-us/sql/t-sql/functions/user-name-transact-sql)
+  (ms.date 2023-10-30, updated 2026-09-21, commit
+  `cf9e6fbc58f7b72c5f278a42796b74394ad059e4`; applies to Azure Synapse
+  Analytics): `USER_NAME()` without an id returns the current database user's
+  name, as `nvarchar(128)`; for a principal that reaches the database through
+  a group, the principal's name, not the group's. Example C compares
+  `sys.database_principals.name` with `USER_NAME(…)` in a `WHERE` clause.
 - [GRANT Object Permissions](https://learn.microsoft.com/en-us/sql/t-sql/statements/grant-object-permissions-transact-sql)
   (ms.date 2025-04-09, commit `a52ca41720ddecda8407b735a031a8559e75bf8c`;
   applies to Azure Synapse Analytics): `GRANT SELECT ON OBJECT::schema.view TO

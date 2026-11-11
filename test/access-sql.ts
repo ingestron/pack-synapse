@@ -54,7 +54,8 @@ export function revokes(kept?: string): string {
     "  AND [permissions].[state] = 'G'",
     "  AND [schemas].[name] = N'bronze'",
     "  AND [objects].[name] = N'orders'",
-    `  AND [permissions].[permission_name] NOT LIKE N'%[^A-Z ]%'${kept ? "" : ";"}`,
+    "  AND [permissions].[permission_name] NOT LIKE N'%[^A-Z ]%'",
+    `  AND [principals].[name] <> USER_NAME()${kept ? "" : ";"}`,
     ...(kept
       ? [
           `  AND NOT ([permissions].[permission_name] = N'SELECT' AND [principals].[name] IN (${kept}));`,

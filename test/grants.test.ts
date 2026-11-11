@@ -17,6 +17,12 @@ describe("grants in views.sql", () => {
     );
   });
 
+  it("never revokes from the database user that runs views.sql", () => {
+    const text = views(accessFiles({ grants: "exact", roles: [] }));
+    expect(text).toContain("\n  AND [principals].[name] <> USER_NAME();\n");
+    expect(text).not.toContain("DATABASE_PRINCIPAL_ID");
+  });
+
   it("revokes every direct permission on a view with exact grants and no role", () => {
     expect(views(accessFiles({ grants: "exact", roles: [] }))).toBe(
       `${header}${ordersView}\n${revokes()}`,
