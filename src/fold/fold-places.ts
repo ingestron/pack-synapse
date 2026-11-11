@@ -12,7 +12,8 @@ import {
 } from "./fold-problems.js";
 
 /** What a variable stands for, which names it (spec section 8.2). */
-export type Kind = "database" | "schema" | "view" | "path" | "data_source" | "delimiter" | "value";
+export type Kind =
+  "database" | "schema" | "view" | "path" | "data_source" | "delimiter" | "principal" | "value";
 
 /** A value of views.sql, with each target's text. */
 export interface Place {

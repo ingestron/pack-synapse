@@ -1,6 +1,7 @@
 // What sqlcmd would read in views.sql as something other than T-SQL is refused in
 // every environment: a line that is one of its commands, and `$(`.
 import { describe, expect, it } from "vitest";
+import { accessFiles } from "../access-project.js";
 import { erpEnvironments } from "../fold-helpers.js";
 import { base, problems } from "../project.js";
 
@@ -91,5 +92,50 @@ describe("$( in a view", () => {
         ),
       },
     ]);
+  });
+});
+
+describe("$( in a principal", () => {
+  it("is refused, naming principals among what to leave it out of", () => {
+    const files = accessFiles({
+      roles: ["  - { role: auditors }"],
+      principals: "principals: { auditors: 'ops$(team)' }",
+    });
+    expect(problems(files).filter((item) => item.code === "PACK_CHECK")).toEqual([
+      {
+        code: "PACK_CHECK",
+        message: expect.stringContaining(
+          'the view of table "orders" would hold "$(", which sqlcmd reads as the start of a variable such as $(database), even in a string; leave "$(" out of its names, path, columns, code and principals',
+        ),
+      },
+    ]);
+  });
+});
+
+describe("sqlcmd commands in checks", () => {
+  it("refuses a check whose text would put a command line in checks.sql", () => {
+    const transform = [
+      "apiVersion: ingestron.io/v1",
+      "kind: Transform",
+      "id: totals",
+      "inputs: [orders]",
+      "code: SELECT id, total FROM {{ tables.orders }}",
+      "contract: orders",
+      'expectations: [{ name: positive, check: "total > 0\\nGO", action: warn }]',
+      "",
+    ].join("\n");
+    const standard = base["standard.yaml"]!.replace(
+      "store:",
+      "layers: [{ name: bronze, does: [check] }]\nstore:",
+    );
+    const contract = base["orders.yaml"]!.replace(
+      "  - name: orders\n",
+      "  - name: totals\n    logicalType: object\n    properties:\n      - { name: id, logicalType: integer }\n      - { name: total, logicalType: number }\n  - name: orders\n",
+    );
+    expect(
+      problems({ "totals.yaml": transform, "standard.yaml": standard, "orders.yaml": contract })
+        .map(({ message }) => message)
+        .join("\n"),
+    ).toContain('would hold the line "GO" in views.sql');
   });
 });

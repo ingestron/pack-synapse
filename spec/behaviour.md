@@ -44,10 +44,15 @@ writes to one folder (the CLI writes `build/synapse/`):
 | -------------------------------- | -------------------------------------------------------------------------- |
 | `views.sql`                      | The views, with a SQLCMD variable `$(<name>)` wherever environments differ |
 | `environments/<environment>.sql` | That environment's values (`:setvar`), then `:r views.sql`                 |
+| `checks.sql`                     | The checks, when any table runs one (section "Quality and cleansing")      |
+| `checks/<environment>.sql`       | That environment's values (`:setvar`), then `:r checks.sql`                |
 
 A project with no table kept by `synapse-view` or served by `synapse-serve`
-gets no files. `build(model)` gives `views.sql` alone, for one environment,
-with every value as the model resolves it. It is the fold property's render
+gets no files, and a project where no table runs a check gets no `checks.sql`
+and no `checks/` wrappers. There is one `checks.sql` per project, as there is
+one `views.sql`. `build(model)` gives `views.sql`, and `checks.sql` when a
+table runs a check, for one environment, with every value as the model
+resolves it. It is the fold property's render
 (section 9). It takes any model, one resolved with `deployTime` included:
 where the files' location is not under `data_source_location`, which the
 method check refuses, or is hidden by a value supplied when deploying, which
@@ -72,6 +77,9 @@ the output's location relative to `data_source_location`, wildcards kept.
 Parquet uses `FORMAT = 'PARQUET'`; CSV uses `FORMAT = 'CSV'`, `PARSER_VERSION =
 '2.0'`, `HEADER_ROW = TRUE` when `header`, and `FIELDTERMINATOR`. A transform's
 view is `SELECT <contract columns> FROM (<code>) AS [source]`.
+
+With `synapse.manage.grants` on, the grants of a view `synapse-view` keeps,
+and its exact grants, follow the view (section "Access").
 
 When the ingest did not rename columns (`renamed` false), a column with a
 `physicalName` is read under that name and selected `AS` its contract name.
@@ -115,8 +123,9 @@ with `]` doubled; text literals double `'`.
   `EXIT` followed by `(`, a space or a tab, or alone, or `ON ERROR`. Every line
   of a transform's code is checked, and every line after a line break in any
   other text a view takes from the definitions (names, the path, the data
-  source, the delimiter, columns and their types), and in the database of a
-  `USE` and the project's id.
+  source, the delimiter, columns and their types, and the names, conditions
+  and `sql` queries of its checks, which `checks.sql` holds), and in the
+  database of a `USE` and the project's id. `$(` is refused in the same texts.
 - Whether files are under a `data_source_location`, when either holds a value
   supplied only when deploying (`${envvar:NAME}`), is not known when
   generating, so the method check does not judge it; section 10 says when the
@@ -124,8 +133,11 @@ with `]` doubled; text literals double `'`.
 
 ## 6. Contracts
 
-Columns and their types are used; `required`, quality rules, relationships and
-tags are not used yet (views check no rows); the other facts are
+Columns and their types are used. `required`, `unique`, the limits in
+`logicalTypeOptions` and the quality rules become checks (definitions
+specification, section 6), which a table runs in a layer whose `does` lists
+`check` or is `raw` (section "Quality and cleansing"); the primary key is used to
+deduplicate. Relationships and tags are not used yet; the other facts are
 documentation.
 
 ## 7. Request
@@ -135,7 +147,9 @@ key when the database has none, the managed-identity database scoped credential
 `<data_source>_identity`, the workspace's Storage Blob Data Reader access, and a
 resource instance rule when the storage account has a firewall; and report
 users' SELECT on the schemas, REFERENCES on the credential and ADMINISTER
-DATABASE BULK OPERATIONS.
+DATABASE BULK OPERATIONS. With grants, the report users section names each
+principal instead, and a section lists the views exact grants reach (section
+"Access").
 
 ## 8. Building environments together
 
@@ -160,16 +174,23 @@ DATABASE BULK OPERATIONS.
    - a view's schema or name, also where a transform names it as an input;
    - a view over files' path under the data source, its data source, and its
      CSV delimiter;
-   - a run of a transform's code (below).
+   - a run of a transform's code (below);
+   - the principal a view is granted to (section "Access").
 
    Anything else that differs in a view over files, such as its format, its
-   CSV header, its columns or their types, is refused (section 10).
+   CSV header, its columns or their types, is refused (section 10). So is a
+   view whose grants differ in more than their principals: granted in one
+   target and not another, other roles, or exact grants in one target only.
 
 5. Every variable is named, `views.sql` is written from the folded plan with
    `$(<name>)` for each variable, and each target gets its wrapper
-   (section 8.3).
-6. The folded files are checked against each target's own `views.sql`
-   (section 9).
+   (section 8.3). When a table runs a check, `checks.sql` is written from the
+   same folded plan, with the same variables, and each target gets its checks
+   wrapper. What a view cleanses, deduplicates and checks is taken from the
+   first target; a target whose own files would differ there is refused by
+   step 6.
+6. The folded files are checked against each target's own `views.sql` and
+   `checks.sql` (section 9).
 
 Two places whose values are the same in every target share one variable,
 except that a run of a transform's code is shared only within that
@@ -204,8 +225,8 @@ is refused (section 10).
 A variable's value goes into `views.sql` as sqlcmd reads it: as it is,
 wherever `$(<name>)` stands, inside strings and brackets too (references.md).
 So a value that differs MUST NOT hold a line break, which would end its
-`:setvar` line, or `$(`; and a name, path, data source or delimiter MUST NOT
-hold `'` or `]`, which `views.sql` would otherwise write doubled. Such a value
+`:setvar` line, or `$(`; and a name, path, data source, delimiter or
+principal MUST NOT hold `'` or `]`, which `views.sql` would otherwise write doubled. Such a value
 is refused (section 10). A transform's code is written as it is in every
 target, so a run of it may hold `'`.
 
@@ -220,6 +241,7 @@ target, so a run of it may hold `'`.
 | A data source otherwise                  | `data_source_<table>`                                 |
 | A CSV delimiter                          | `delimiter_<table>`                                   |
 | A run of a transform's code              | `value_<table>`                                       |
+| The principal of a role                  | `principal_<role>`                                    |
 | A deploy-time value `${envvar:NAME}`     | `NAME`, as written (section 8.4)                      |
 
 Names are in lower case, with `_` for any character other than a letter, a
@@ -249,6 +271,11 @@ SQLCMD variable names are the same in any case.
    in, not to the script that names it, so the wrapper is run from the folder
    that holds `views.sql` (the CLI's `build/synapse/`), and
    `:r ../views.sql` would be wrong.
+
+`checks/<environment>.sql`, the checks wrapper, is the same, with three
+differences: its comments name `checks.sql` and its own path, it includes
+`:r checks.sql`, and a line `GO` follows that, as `checks.sql` has no `GO` of
+its own. It sets every variable, as the views wrapper does.
 
 A wrapper sets every variable its environment does not leave for the
 deploying pipeline, the first environment's included, so no environment
@@ -303,7 +330,8 @@ For a target `e`:
   pack's output folder with `-i environments/e.sql`: each line `views.sql`
   contributes, with each `$(<name>)` replaced by the value `e`'s wrapper sets,
   else by the text of the deploy-time value supplied for it, as an
-  environment variable.
+  environment variable; and, when there is a `checks.sql`, what sqlcmd sends
+  from it in the same way with `-i checks/e.sql`.
 
 The texts are compared as text. `view(files, e)` MUST equal `render(e)` for
 every target, and for the models of the first one, two and more targets.
@@ -317,25 +345,26 @@ gets. The pack's tests check it again with the definitions package's
 ## 10. Problems
 
 `buildEnvironments` reports only `ENVIRONMENTS_DIFFER` and `DEPLOY_VALUE`, all
-errors, and the notice below. With any error, `files` and `deployValues` are
+errors, and the notices below. With any error, `files` and `deployValues` are
 empty. Besides the
 `structural` problems of `compareTargets`:
 
-| Code                  | Message                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | Location                                                                           |
-| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
-| `ENVIRONMENTS_DIFFER` | `In <target> and <target>, the views are in databases grouped differently, from the view of "<table>": views.sql switches database between views, so each view must share its database with the same other views in every environment.`, hint `Name the databases so that the same tables share a database in every environment, such as one database per environment or per layer.`                                                                                                                                                                                                                                               | The table's file                                                                   |
-| `ENVIRONMENTS_DIFFER` | `The view [<schema>].[<view>] reads its files differently in <targets>: its <format, CSV header, columns, extra columns the landing step adds, column naming or column typing> is <value> in <targets> and <value> in <targets>.`, hint `Make the files' format, header and columns the same in every environment; only names, paths and the data source may differ.`                                                                                                                                                                                                                                                              | The table's file                                                                   |
-| `ENVIRONMENTS_DIFFER` | `The code of transform "<table>" differs between <targets> in more than values: it reads other inputs, selects other columns, or reads an input in another database.`, hint `Make the transform's inputs, columns and databases the same in every environment; only values in its code, such as ${values.<name>}, may differ.`                                                                                                                                                                                                                                                                                                     | The table's file                                                                   |
-| `ENVIRONMENTS_DIFFER` | `<The place> (setting <setting>) is <value> in <targets> and <value> in <targets>, and a value that differs between environments cannot hold <' or ] or "$(" or a line break>: sqlcmd puts a variable's value into views.sql as it is.`, hint `Make this value the same in every environment, or leave that character out of it.`, or, for a line break in a transform's code, `Keep each value that differs between environments within one line of the code.` The setting is `naming.catalog`, `naming.schema`, `naming.table`, `the landing location`, `data_source` or `csv.delimiter`, and is left out for a transform's code | Where the setting is written; a transform's file for its code; else `project.yaml` |
-| `ENVIRONMENTS_DIFFER` | `views.sql cannot be generated once for every environment: in <targets> it would not be what that environment gets on its own, because the environments differ there in more than values.`, followed by ` Settings that differ: <setting> (<value> in <targets> and <value> in <targets>).` naming up to three step settings that differ                                                                                                                                                                                                                                                                                           | Where the first step setting that differs is written, else `project.yaml`          |
-| `DEPLOY_VALUE`        | `"${envvar:<NAME>}" is supplied only when deploying, but in <target> it is part of a longer value, "<text>", in <the place>; a SQLCMD variable in views.sql stands for a whole value.`, hint `Make the variable hold the whole value, or write the value in project.yaml for each environment.`                                                                                                                                                                                                                                                                                                                                    | The value's first use                                                              |
-| `DEPLOY_VALUE`        | `In <the place>, this value is ${envvar:<NAME>} in <target> and ${envvar:<NAME>} in <target>.`, hint `Use one variable name and give it a different value in each pipeline stage.`                                                                                                                                                                                                                                                                                                                                                                                                                                                 | The second value's first use                                                       |
-| `DEPLOY_VALUE`        | `${envvar:<NAME>} stands for one value in each environment, but <target> writes it as "<text>" and "<text>", the second in <the place>.`, hint `Write the value the same way in every place of that environment.`                                                                                                                                                                                                                                                                                                                                                                                                                  | The value's first use                                                              |
-| `DEPLOY_VALUE`        | `The code of transform "<table>" holds ${envvar:<NAME>} in <target>, which is supplied only when deploying; views.sql holds a transform's code as it is written, so every value in it must be known when generating.`, hint `Write the value in project.yaml for each environment, and use it in the code as ${values.<name>}.`                                                                                                                                                                                                                                                                                                    | The value's first use                                                              |
-| `DEPLOY_VALUE`        | `The view of table "<table>" reads <location> by its path under data_source_location, <location>, in <target>; with ${envvar:<NAME>} supplied only when deploying, that path is not known when generating.`, hint `Write data_source_location and the landing location in project.yaml for each environment, or supply only the part that both share, such as the storage account.`                                                                                                                                                                                                                                                | The value's first use                                                              |
-| `DEPLOY_VALUE`        | `${envvar:<NAME>} would be the SQLCMD variable <NAME>, but sqlcmd keeps names that start with SQLCMD for its own settings.`, hint `Rename the environment variable so that its name does not start with SQLCMD.`                                                                                                                                                                                                                                                                                                                                                                                                                   | The value's first use                                                              |
-| `DEPLOY_VALUE`        | `${envvar:<NAME>} differs from another value supplied when deploying only in the case of its name, but SQLCMD variable names are the same in any case.`, hint `Give the environment variables names that differ in more than their case.`                                                                                                                                                                                                                                                                                                                                                                                          | The value's first use                                                              |
-| `DEPLOY_VALUE`        | `views.sql would hold ${envvar:<NAME>}, which is supplied only when deploying, where the pack cannot make it a SQLCMD variable; only a database, schema or view name, a file path, a data source and a CSV delimiter can be.`                                                                                                                                                                                                                                                                                                                                                                                                      | The value's first use                                                              |
+| Code                  | Message                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | Location                                                                           |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| `ENVIRONMENTS_DIFFER` | `In <target> and <target>, the views are in databases grouped differently, from the view of "<table>": views.sql switches database between views, so each view must share its database with the same other views in every environment.`, hint `Name the databases so that the same tables share a database in every environment, such as one database per environment or per layer.`                                                                                                                                                                                                                                                                    | The table's file                                                                   |
+| `ENVIRONMENTS_DIFFER` | `The view [<schema>].[<view>] reads its files differently in <targets>: its <format, CSV header, columns, extra columns the landing step adds, column naming or column typing> is <value> in <targets> and <value> in <targets>.`, hint `Make the files' format, header and columns the same in every environment; only names, paths and the data source may differ.`                                                                                                                                                                                                                                                                                   | The table's file                                                                   |
+| `ENVIRONMENTS_DIFFER` | `The code of transform "<table>" differs between <targets> in more than values: it reads other inputs, selects other columns, or reads an input in another database.`, hint `Make the transform's inputs, columns and databases the same in every environment; only values in its code, such as ${values.<name>}, may differ.`                                                                                                                                                                                                                                                                                                                          | The table's file                                                                   |
+| `ENVIRONMENTS_DIFFER` | `The grants on view [<schema>].[<view>] differ between <target> and <target> in more than their principals.`, hint `Turn synapse.manage.grants on or off in every environment alike, and give the table the same roles and grant mode in each; only the principals may differ.`                                                                                                                                                                                                                                                                                                                                                                         | The table's file                                                                   |
+| `ENVIRONMENTS_DIFFER` | `<The place> (setting <setting>) is <value> in <targets> and <value> in <targets>, and a value that differs between environments cannot hold <' or ] or "$(" or a line break>: sqlcmd puts a variable's value into views.sql as it is.`, hint `Make this value the same in every environment, or leave that character out of it.`, or, for a line break in a transform's code, `Keep each value that differs between environments within one line of the code.` The setting is `naming.catalog`, `naming.schema`, `naming.table`, `the landing location`, `data_source`, `csv.delimiter` or `principals.<role>`, and is left out for a transform's code | Where the setting is written; a transform's file for its code; else `project.yaml` |
+| `ENVIRONMENTS_DIFFER` | `views.sql cannot be generated once for every environment: in <targets> it would not be what that environment gets on its own, because the environments differ there in more than values.`, followed by ` Settings that differ: <setting> (<value> in <targets> and <value> in <targets>).` naming up to three step settings that differ                                                                                                                                                                                                                                                                                                                | Where the first step setting that differs is written, else `project.yaml`          |
+| `DEPLOY_VALUE`        | `"${envvar:<NAME>}" is supplied only when deploying, but in <target> it is part of a longer value, "<text>", in <the place>; a SQLCMD variable in views.sql stands for a whole value.`, hint `Make the variable hold the whole value, or write the value in project.yaml for each environment.`                                                                                                                                                                                                                                                                                                                                                         | The value's first use                                                              |
+| `DEPLOY_VALUE`        | `In <the place>, this value is ${envvar:<NAME>} in <target> and ${envvar:<NAME>} in <target>.`, hint `Use one variable name and give it a different value in each pipeline stage.`                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | The second value's first use                                                       |
+| `DEPLOY_VALUE`        | `${envvar:<NAME>} stands for one value in each environment, but <target> writes it as "<text>" and "<text>", the second in <the place>.`, hint `Write the value the same way in every place of that environment.`                                                                                                                                                                                                                                                                                                                                                                                                                                       | The value's first use                                                              |
+| `DEPLOY_VALUE`        | `The code of transform "<table>" holds ${envvar:<NAME>} in <target>, which is supplied only when deploying; views.sql holds a transform's code as it is written, so every value in it must be known when generating.`, hint `Write the value in project.yaml for each environment, and use it in the code as ${values.<name>}.`                                                                                                                                                                                                                                                                                                                         | The value's first use                                                              |
+| `DEPLOY_VALUE`        | `The view of table "<table>" reads <location> by its path under data_source_location, <location>, in <target>; with ${envvar:<NAME>} supplied only when deploying, that path is not known when generating.`, hint `Write data_source_location and the landing location in project.yaml for each environment, or supply only the part that both share, such as the storage account.`                                                                                                                                                                                                                                                                     | The value's first use                                                              |
+| `DEPLOY_VALUE`        | `${envvar:<NAME>} would be the SQLCMD variable <NAME>, but sqlcmd keeps names that start with SQLCMD for its own settings.`, hint `Rename the environment variable so that its name does not start with SQLCMD.`                                                                                                                                                                                                                                                                                                                                                                                                                                        | The value's first use                                                              |
+| `DEPLOY_VALUE`        | `${envvar:<NAME>} differs from another value supplied when deploying only in the case of its name, but SQLCMD variable names are the same in any case.`, hint `Give the environment variables names that differ in more than their case.`                                                                                                                                                                                                                                                                                                                                                                                                               | The value's first use                                                              |
+| `DEPLOY_VALUE`        | `views.sql would hold ${envvar:<NAME>}, which is supplied only when deploying, where the pack cannot make it a SQLCMD variable; only a database, schema or view name, a file path, a data source and a CSV delimiter can be.`                                                                                                                                                                                                                                                                                                                                                                                                                           | The value's first use                                                              |
 
 A `PACK_NOTICE` is a warning, so the files are still written. The pack gives
 one, for each deploy-time value in `deployValues` whose `NAME` is not all upper
@@ -350,11 +379,20 @@ only when the step maps it with `env:`:
 `<UPPER>` is `NAME` in upper case. A value is reported once, however many
 environments hold it.
 
+The pack gives no notice for a table check it cannot apply: the definitions
+package judges a table check that counts values against a `pattern` as the
+`pattern` rule kind, which the pack declares `not-applicable`, so it is a
+`NOT_APPLIED` warning about the table (definitions specification, section
+11.7), and the passport says it is not enforced. Nor is a zone Windows has
+no name for a notice: the pack lists it in its coverage, and the definitions
+package reports it (section "Quality and cleansing").
+
 `<the place>` names the value: `the database of the views in layer <layer>`,
 `the schema of view [<schema>].[<view>]`, `the name of view …`,
 `the file path of view …`, `the data source of view …`,
 `the CSV delimiter of view …`, `the database of the view of input "<table>"`
-(or its schema or name), or `a value in the code of transform "<table>"`. A
+(or its schema or name), `a value in the code of transform "<table>"`, or
+`the principal of the role "<role>" on view …`. A
 view is named by the first target's names. Target lists are joined with `, `,
 the last two with `and`. A problem the same as one already given is given
 once. The hint, where none is given, is the code's (definitions
@@ -388,6 +426,566 @@ specification, section 2.1).
   The fixture's transform holds two values on separate lines, one with more
   tokens in dev than in test, and `test/token-diff.test.ts` checks the token
   diff on its own.
+- **Quality and cleansing** (`test/quality.test.ts` and the tests beside it):
+  the views and `checks.sql` of the shared quality fixture
+  (`test/fixtures/quality`, the Databricks pack's, made Synapse's), whole; the
+  bronze views unchanged; each condition, cleansing value, table check and
+  coverage entry; `Europe/London` as `GMT Standard Time` and a zone Windows
+  has no name for; `checks.sql` folded with the views' variables, against
+  the sqlcmd model, and every batch through the T-SQL check. The generator of
+  the zone table has its own tests (`scripts/windows-zones.test.mjs`).
+- **Access** (`test/grants.test.ts` and the tests beside it): the whole
+  `views.sql` of a project with grants, of one with exact grants, and of one
+  with a principal holding `]`; a contract used by a kept view and a table
+  another pack keeps, where the mask is `NOT_APPLIED` once, naming only the
+  view; grants on a served view, with its mask reported for it, and none on
+  one with no store step; the same files with the switch off; the
+  request; the fold with a principal per environment, against the sqlcmd
+  model, and every batch through the T-SQL check; and what the fold refuses.
 - **sqlcmd commands** (`test/sqlcmd-checks.test.ts`): each command line in
   section 5 is refused in a transform's code, indented ones included, and
   lines that only look like commands are not.
+
+## Intent
+
+The pack declares what it does with each intent path and value (section 11 of the
+definitions specification) in `intent`, and `intentCoverageGaps` is empty. Synapse
+serverless builds views, which keep nothing and run nothing, so the pack applies no
+intent about what is kept or run. It applies the quality and cleansing paths in its
+views and in `checks.sql` (section "Quality and cleansing"). The entries it uses
+record the Microsoft Learn page they rest on, as generally available, checked
+2026-11-10.
+
+| Intent                                                                                | Coverage                       | Reason or what it does                                                                                                             |
+| ------------------------------------------------------------------------------------- | ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `history`, `sequence`, `storage`, `retention.time_travel`, `retention.log`, `rescued` | `not-applicable`               | Views keep nothing; they read files or a query each time.                                                                          |
+| `load.deletes`                                                                        | `not-applicable`               | Views keep nothing; they read files or a query each time.                                                                          |
+| `load` (the rest), `retention.landed_files`                                           | `elsewhere`                    | Another pack lands the files.                                                                                                      |
+| `audit: run_id`, `window_start`, `window_end`, `source_object`, `source_connection`   | `elsewhere`                    | Another pack lands the files.                                                                                                      |
+| `audit: loaded_at`, `row_hash`, `source_file`, `source_modified_at`                   | `not-applicable`               | A view adds no columns of its own.                                                                                                 |
+| `operations`                                                                          | `not-applicable`               | Synapse serverless runs no jobs.                                                                                                   |
+| `quality.rules` (every kind but two)                                                  | `used`, `onlyWhere: check`     | A condition in the view for drop, and a count in checks.sql, written from the rule.                                                |
+| `quality.rules: pattern`                                                              | `not-applicable`               | serverless T-SQL has no regular expressions.                                                                                       |
+| `quality.rules: items`                                                                | `not-applicable`               | views type no arrays.                                                                                                              |
+| `quality.actions: warn`                                                               | `used`, `onlyWhere: check`     | The view keeps the row; checks.sql returns how many rows fail.                                                                     |
+| `quality.actions: drop`                                                               | `used`, `onlyWhere: check`     | The view's WHERE leaves the row out; checks.sql counts how many rows fail.                                                         |
+| `quality.actions: fail`                                                               | `not-applicable`               | a view can't stop a load; checks.sql checks this rule and raises an error when it runs.                                            |
+| `quality.table-checks`                                                                | `used`, `onlyWhere: check`     | Counted in checks.sql over the rows the view keeps: fail raises an error, warn returns the count.                                  |
+| `quality.quarantine`                                                                  | `not-applicable`               | a view keeps no rows to quarantine; checks.sql returns how many rows each drop check leaves out instead.                           |
+| `quality.results`                                                                     | `not-applicable`               | a view keeps no results; checks.sql returns each check's counts instead when it runs.                                              |
+| `cleanse.trim`, `empty`, `map`, `case`, `default`                                     | `used`                         | `TRIM()`, `NULLIF(<column>, '')`, a `CASE` expression, `UPPER()` or `LOWER()`, and `COALESCE()` in the view's `SELECT`.            |
+| `cleanse.timezone`                                                                    | `used`, with `zonesNotApplied` | `AT TIME ZONE` with the zones' Windows names in the view's `SELECT`; each zone Windows has no name for is listed, with its reason. |
+| `deduplicate`                                                                         | `used`                         | A `ROW_NUMBER()` subquery in the view keeps the last row per primary key.                                                          |
+| `access.grants: read`                                                                 | `used`                         | `GRANT SELECT ON OBJECT::` each view, in `views.sql` after the view.                                                               |
+| `access.grants: write`                                                                | `not-applicable`               | views are read-only.                                                                                                               |
+| `access.exact`                                                                        | `used`                         | `REVOKE` of each permission granted directly on the view that its access does not give, in `views.sql` after its grants.           |
+| `access.masks`                                                                        | `not-applicable`               | Synapse serverless has no data masking, and readers of views over files can read the files directly.                               |
+| `access.filters`                                                                      | `not-applicable`               | Synapse serverless has no row-level security, and readers of views over files can read the files directly.                         |
+
+`onlyWhere: check` is met in a layer whose `does` is `raw` too (definitions
+specification, section 5): there every action is `warn`, so the view keeps
+every row and `checks.sql` counts the rows that fail.
+
+The access entries were checked on 2026-11-11 (references.md, "Access").
+
+The reasons of the quality and access entries follow the definitions package's message,
+`<What> isn't applied on <pack>: <reason>.`, so they start in lower case.
+
+The core judges `history`, `sequence`, `storage.*`, `retention.time_travel`,
+`retention.log`, `rescued` and the quality and cleansing paths at the store step, which is
+`synapse-view` here, so a table kept by it that asks for one gets a `NOT_APPLIED`
+diagnostic with the reason above. The view is the step that writes the table and the
+step that reads the files, so it is also where `loaded_at`, `row_hash`,
+`source_file` and `source_modified_at` are judged; none of them is added. The ingest
+step's audit values are the landing pack's to judge, and an entry that is missing or
+`elsewhere` gives no diagnostic. `operations` is judged by the first pack in the
+standard that declares an `operations` path used; Synapse never is.
+
+## Access
+
+The definitions package resolves each table's access and judges it against the
+pack's coverage and its `grants` capability (definitions specification,
+sections 7.1 and 8.2). The pack reads that judgement and never judges again.
+
+### The Platform's `synapse` section
+
+`platformSection` has one property, `manage`, with one switch:
+
+| Field                   | What it does                                                                                                                                                                             |
+| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `synapse.manage.grants` | Grants SELECT on each view to the principals its contract's roles and its layer name, in `views.sql` after the view; with exact grants, revokes what they do not give. Default: `false`. |
+
+The capability `needs`: the identity that runs `views.sql` owns the views,
+or has CONTROL on them through `db_owner` or on their schema or database, so
+it may grant and revoke on them; with exact grants, it keeps its own direct
+permissions on a view, but not those of a group it belongs to; and each
+principal is a database user in the view's database.
+
+The pack declares the `grants` capability, so a role on a view while the
+switch is off is a `CAPABILITY_OFF` warning with the fix `Turn on
+manage.grants`, which sets `synapse.manage.grants` (definitions
+specification, section 7.1). A project that does not turn it on gets the
+files it got before.
+
+### Which views
+
+A view gets grants when all of these hold:
+
+- `synapse-view` keeps the table, or `synapse-serve` serves it, over a table
+  another pack keeps or over the landed files. The definitions package judges
+  a kept view's access by the view, and judges a served table by its serve
+  step, a second time when another pack keeps it (definitions specification,
+  section 8.2), so the masks and filters a served view cannot apply are
+  reported for it;
+- `synapse.manage.grants` is on;
+- the table has `access`, and the judgement of the view's step does not list
+  `grants`: the table's `notApplied` for a kept view, the serve step's
+  `notApplied` for a served one.
+
+Each role in the table's `access.grants` is granted once, in the order the
+access names it. `write` gives SELECT only: the definitions package reports
+it as `NOT_APPLIED`, "views are read-only.". Exact grants apply when
+`access.exact` is true and the same judgement lists neither `grants` nor
+`exact`. With exact grants and no role, the view gets exact grants alone.
+
+### In views.sql
+
+After a view's `CREATE OR ALTER VIEW … GO`, still in its database:
+
+```sql
+GRANT SELECT ON OBJECT::[<schema>].[<view>] TO [<principal>];
+GO
+```
+
+one `GRANT` a line, for each principal, then `GO`. Each principal is in
+brackets, with `]` doubled, so `ops]admins` is `[ops]]admins]`.
+
+With exact grants, one more batch follows:
+
+```sql
+DECLARE @revoke NVARCHAR(MAX);
+SELECT @revoke = STRING_AGG(CONVERT(NVARCHAR(MAX), N'REVOKE ' + [permissions].[permission_name] COLLATE DATABASE_DEFAULT + N' ON OBJECT::[<schema>].[<view>] FROM ' + QUOTENAME([principals].[name]) COLLATE DATABASE_DEFAULT + N';'), N' ')
+FROM sys.database_permissions AS [permissions]
+JOIN sys.database_principals AS [principals] ON [principals].[principal_id] = [permissions].[grantee_principal_id]
+JOIN sys.objects AS [objects] ON [objects].[object_id] = [permissions].[major_id]
+JOIN sys.schemas AS [schemas] ON [schemas].[schema_id] = [objects].[schema_id]
+WHERE [permissions].[class] = 1
+  AND [permissions].[minor_id] = 0
+  AND [permissions].[state] = 'G'
+  AND [schemas].[name] = N'<schema>'
+  AND [objects].[name] = N'<view>'
+  AND [permissions].[permission_name] NOT LIKE N'%[^A-Z ]%'
+  AND [principals].[name] <> USER_NAME()
+  AND NOT ([permissions].[permission_name] = N'SELECT' AND [principals].[name] IN (N'<principal>', …));
+IF @revoke IS NOT NULL EXEC (@revoke);
+GO
+```
+
+The last condition is left out when the view has no role. So exact grants
+revoke a permission only when every one of these holds:
+
+- it is granted on the view itself (`class` 1, object or column, with
+  `minor_id` 0, the object): never on its schema or database, and never on
+  one of its columns;
+- it is a plain `GRANT` (`state` `G`). A `DENY` is kept, and so is a
+  permission given `WITH GRANT OPTION` (`W`): revoking it needs `CASCADE`,
+  which would also take it from the principals it was passed on to;
+- its name is upper-case letters and spaces, so nothing else that
+  `sys.database_permissions` holds reaches the statement;
+- it is not granted to the database user that runs `views.sql`, which
+  `USER_NAME()` gives: SQL Server refuses to revoke a permission from
+  yourself, and the batch would otherwise take away the rights the script
+  needs. `USER_NAME()` is the user the script runs as, not a group it reaches
+  the database through, so a permission granted directly on a view to such a
+  group is revoked like any other; and when `USER_NAME()` is `NULL`, the
+  condition holds for no row and nothing is revoked;
+- it is not SELECT to a principal the view grants to.
+
+Ownership is never revoked: an owner's rights are not rows of
+`sys.database_permissions`. The principal's name goes into the statement
+through `QUOTENAME`. Both names the statement joins are put in the database's
+collation (`COLLATE DATABASE_DEFAULT`): the catalog views give them different
+collations, and `STRING_AGG` cannot join texts whose collations conflict. The
+schema, view and principals the pack writes are
+quoted as above and as string literals, with `'` doubled. The script runs
+`GRANT` before `REVOKE`, so a principal the view names never loses SELECT
+between the two.
+
+### Building environments together
+
+A principal that differs between environments, such as one written
+`${values.marketing}`, is the variable `principal_<role>` (section 8.2), in
+the `GRANT` and in the list exact grants keep. A principal that differs and
+holds `'` or `]` is refused, as a name is (section 10). A principal the same in
+every environment is written as it is, `]` and `'` included.
+
+### Request
+
+When any view is granted to a principal, the report users section has one
+line for each principal those views are granted to, in the order first
+granted:
+
+> `<principal>`: in `<database>`, create it as a database user from the
+> external provider (`CREATE USER [<principal>] FROM EXTERNAL PROVIDER`), then
+> give it REFERENCES on the database scoped credential `<credential>` and
+> ADMINISTER DATABASE BULK OPERATIONS, which views over files need. views.sql
+> grants it SELECT on its views. These rights also let it read every file
+> under `<data source location>` directly, not only through the views.
+
+The databases are those of the views granted to it, and the credentials and
+locations are every data source of the project, since a transform's view
+reads its inputs' files. A name holding a backtick is written as a code span
+of two backticks.
+
+Before those lines, when some views get no access from views.sql at all, the
+line about report users stays for those views. It names the views, not their
+schemas, since SELECT on a schema would reach the granted views too. A view
+with exact grants and no role is not named: views.sql revokes such a SELECT
+each time it runs (below):
+
+> In `<database>`, give each report user SELECT on the views
+> `[<schema>].[<view>]`, …, REFERENCES on the database scoped credential
+> `<credential>`, and ADMINISTER DATABASE BULK OPERATIONS, which views over
+> files need.
+
+With no view granted to a principal, the line is as before, with the schemas.
+
+With exact grants on any view, a section "Exact grants" has the intro:
+
+> Exact grants are on. Each time views.sql runs, it removes every permission
+> granted directly on these views to anyone their contracts and layers don't
+> name, and every permission other than SELECT to those they do. It keeps
+> ownership, permissions on schemas and databases, denials, permissions
+> given WITH GRANT OPTION, and those of the database user that runs
+> views.sql, but not those of a group that user belongs to. Before turning
+> this on, move any access given by hand into the contracts.
+
+and one line per view, `` `[<schema>].[<view>]` in `<database>` ``. For a
+view that is granted to no principal, the line goes on:
+
+> : no contract or layer names a role for it, so no one can read it except its
+> owners and those given access on its schema or database.
+
+A project without grants has the request it had before.
+
+## Quality and cleansing
+
+The model says what each table checks, cleanses and deduplicates (definitions
+specification, sections 6 and 11.7). The pack writes it into the view of each
+table `synapse-view` keeps, and counts the checks in `checks.sql`, as plain
+T-SQL for serverless SQL pools. A table that `synapse-serve` serves is kept,
+cleansed and checked by the pack that stores it, so its view has none of this.
+The sources are in [references.md](references.md), under "Quality and
+cleansing".
+
+The order is the design's: each column is typed by the view (its `WITH`
+clause, for a view over files; a transform's query types its own), then
+cleansed; then the rows are deduplicated; then the row checks read them, so
+checks see cleansed values. A table with no cleansing, no deduplicate and no
+`drop` check has the view it had before checks existed.
+
+### The view
+
+`<base>` is the query a view had before, with each cleansed column selected
+as its expression, `<expression> AS [<name>]`, in its place. With any cleansed
+column, or the file column below, the select list has one column a line,
+each indented two spaces:
+
+- over files, `SELECT <columns> FROM OPENROWSET(…) WITH (…) AS [rows]`
+  (section 4); with deduplicate, the select list ends with
+  `[rows].filepath() AS [_ingestron_file]`, the file each row came from;
+- over a transform, `SELECT <columns> FROM (<code>) AS [source]`.
+
+With deduplicate, the rows are `<base>` numbered and the first of each key
+kept, with `<outputs>` the contract's columns and then the columns the landing
+step adds:
+
+```sql
+SELECT <outputs>
+FROM (
+SELECT *, ROW_NUMBER() OVER (PARTITION BY [<key>], … ORDER BY [<order_by>] DESC, …, [_ingestron_file] DESC) AS [_ingestron_row]
+FROM (
+<base>
+) AS [cleansed]
+) AS [numbered]
+WHERE [_ingestron_row] = 1
+```
+
+Otherwise the rows are `<base>`. `<key>` is each primary key column, in the
+contract's order, and `<order_by>` each `order_by` column, as written; a view
+over files then orders by the file, last first, so the same row is kept each
+time it is read; a transform has no file. T-SQL sorts null below every value,
+so `DESC` puts nulls last, as Spark and DuckDB do.
+
+With at least one `drop` check, the view keeps only the rows that pass every
+`drop` check:
+
+```sql
+SELECT *
+FROM (
+<rows>
+) AS [checked]
+WHERE (<condition>)
+  AND (<condition>)
+```
+
+A row whose condition is unknown (null) is left out: a row passes only when
+its check is true. Otherwise the view is the rows. `warn` and `fail` checks
+leave the view as it is: it keeps their rows.
+
+### Cleansing
+
+Each column in `cleanse.columns` is selected as an expression, each operation
+applied to the result of the one before, in the model's order. `<x>` starts as
+the column as `<base>` reads it, `[<name>]` (the file's name for it when the
+ingest did not rename it):
+
+| Operation  | Expression                                                                                                                   |
+| ---------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `timezone` | `CAST((CAST(<x> AS DATETIME2(7)) AT TIME ZONE '<from>') AT TIME ZONE '<to>' AS DATETIME2(7))`, with the zones' Windows names |
+| `trim`     | `TRIM(<x>)`                                                                                                                  |
+| `empty`    | `NULLIF(<x>, '')`                                                                                                            |
+| `map`      | `CASE <x> WHEN <key> THEN <value> … ELSE <x> END`, the keys in the order written; a null value is `NULL`                     |
+| `case`     | `UPPER(<x>)` or `LOWER(<x>)`                                                                                                 |
+| `default`  | `COALESCE(<x>, <value>)`                                                                                                     |
+
+A value is written for the column's `logicalType`: a number as it is for
+`integer` and `number` (a `map` key, which is text, too, when it reads as a
+number); `CAST(1 AS BIT)` or `CAST(0 AS BIT)` for `true` or `false` of a
+`boolean`; `CAST('<text>' AS DATE)` for `date`; `CAST('<text>' AS DATETIME2(7))`
+for `timestamp`; `NULL` for null; any other value as T-SQL text, `'<text>'`
+with `'` doubled. A `boolean` is written as a cast, as the column is `BIT`
+and an `int` would make the result `int`.
+
+T-SQL compares text without the spaces at its end: `'GB '` equals `'GB'`.
+So `NULLIF(<x>, '')` also turns a value of spaces into null, and a `map` key
+or an `in` or `notIn` value matches a value with spaces after it. With `trim`
+before them, as the standard's text cleansing has it, this makes no
+difference; without it, Synapse can match where Databricks does not. Text
+values take the database's code page, as `views.sql`'s other text does; a
+database with a UTF-8 collation keeps every character.
+
+**Time zones.** The column is cast to `DATETIME2(7)` first: a view over files
+already types it so, and a transform's column may come out as text.
+`<x> AT TIME ZONE '<from>'` then reads the column's wall-clock time in the zone
+it was written in and gives a `datetimeoffset`;
+`AT TIME ZONE '<to>'` converts it to the target zone, and the cast gives the
+wall-clock time there as `DATETIME2(7)` again. T-SQL names zones by their
+Windows names (`sys.time_zone_info`), so the pack maps each IANA name the
+model gives to its Windows name with `src/zones/windows.json`:
+
+- The table is generated by `pnpm zones` (`scripts/windows-zones.mjs`) from
+  two files of the Unicode CLDR release named in it:
+  `common/supplemental/windowsZones.xml` and `common/bcp47/timezone.xml`. It
+  records the release, both files' addresses and the day they were read.
+- Each `mapZone` of `windowsZones.xml` maps the IANA names in its `type` to
+  the Windows zone in `other`. The `001` territory gives each Windows zone's
+  main IANA name, and is read first; the other territories' lists add the
+  IANA names of the places that share that Windows zone, such as
+  `Europe/Dublin`. A name keeps the first Windows zone found for it.
+- CLDR's `windowsZones.xml` uses one name for each zone, often the older one
+  (`Asia/Calcutta`, `Europe/Kiev`). Each `type` of `timezone.xml` lists the
+  names that are one zone in its `alias`, so every name in a group that has a
+  Windows zone gets that zone: `Asia/Kolkata` and `Asia/Calcutta` are both
+  `India Standard Time`, `Europe/Kyiv` and `Europe/Kiev` both
+  `FLE Standard Time`, and `UTC` is `UTC`.
+- `Europe/London` is `GMT Standard Time`.
+
+A zone the table does not name has no Windows zone. Against the zones the
+definitions package accepts, these are `Antarctica/Troll`, `CST6CDT`,
+`EST5EDT`, `MST7MDT` and `PST8PDT`. The pack lists them in its
+`cleanse.timezone` coverage entry, as `zonesNotApplied`, each with the reason
+`Windows has no zone for <zone>.` (definitions specification, sections 6.3 and
+11.5). So the definitions package reports a conversion from or to one of them
+`NOT_APPLIED` at the column, `Time zone conversion isn't applied on synapse:
+Windows has no zone for <zone>.`, and the column stays in its `from` zone: the
+table keeps the zone it was in, and a later table converts it. The pack writes
+no conversion for such a column; its expression starts from `<x>` itself. A
+test checks that every listed zone is missing from the table.
+
+Around a clock change, T-SQL moves a wall time in the hour that is skipped in
+spring forward by the length of the gap and gives it the offset after the
+change, and gives a wall time in the hour that happens twice in autumn the
+offset before the change (summer time), as Microsoft's page documents. For `Europe/London` (`GMT Standard Time`) to
+`UTC` in 2026:
+
+| Wall time in London   | UTC                   |
+| --------------------- | --------------------- |
+| `2026-03-29 00:30:00` | `2026-03-29 00:30:00` |
+| `2026-03-29 01:30:00` | `2026-03-29 01:30:00` |
+| `2026-03-29 02:30:00` | `2026-03-29 01:30:00` |
+| `2026-10-25 00:30:00` | `2026-10-24 23:30:00` |
+| `2026-10-25 01:30:00` | `2026-10-25 00:30:00` |
+| `2026-10-25 02:30:00` | `2026-10-25 02:30:00` |
+
+DuckDB reads the repeated hour as the later one (`01:30` is `01:30` UTC), so
+the engines differ in that hour; they agree everywhere else. Windows keeps
+less of each zone's history than the IANA database does: where a zone's
+rules changed in the past, Windows may not have the older rules, so times
+from before such a change can convert differently on Synapse than on
+Databricks and DuckDB. The pack cannot run T-SQL in its tests, so the table
+above is the documented behaviour, not one the tests ran.
+
+### Deduplicate
+
+A table kept by `synapse-view` with `deduplicate` in the model keeps one row
+per primary key, as "The view" above writes it. A view keeps nothing, so
+there is no `upsert` or `append` for the definitions package to judge
+redundant: deduplicate is the only way a view gives one row per key.
+
+### Row checks
+
+A table in a layer whose `does` lists `check` runs its expectations whose
+rule the pack applies. So does a table in a layer whose `does` is `raw`:
+every action there is `warn`, so its view keeps every row, as it was before
+checks existed, and `checks.sql` counts the rows that fail each check. A
+table in any other layer, including one that gives no `does`, runs none: its
+view is what it was before checks existed, and the definitions package
+reports each rule `NOT_APPLIED` with the hint to add `check` to the layer's
+`does`. With
+`<c>` the column in brackets and `<v>` a value (a number as it is, any other
+value as T-SQL text), the condition a row passes is written from the
+expectation's `rule`:
+
+| `kind`       | Condition                                                                                                                   |
+| ------------ | --------------------------------------------------------------------------------------------------------------------------- |
+| `notNull`    | `<c> IS NOT NULL`                                                                                                           |
+| `in`         | `<c> IS NULL OR <c> IN (<v>, …)`; `<c> IS NOT NULL AND <c> IN (<v>, …)` without `allowNull`                                 |
+| `notIn`      | as `in`, with `NOT IN`                                                                                                      |
+| `length`     | `<c> IS NULL OR LEN(REPLACE(<c>, ' ', '_')) >= <min>`, and `<= <max>`                                                       |
+| `range`      | `<c> IS NULL OR <c> >= <min>`, and `<c> <= <max>`; `>` and `<` when `exclusive`                                             |
+| `multipleOf` | `<c> IS NULL OR <c> % <value> = 0` for an exact number; otherwise `<c> IS NULL OR <c> - FLOOR(<c> / <value>) * <value> = 0` |
+| `pattern`    | not applied: serverless T-SQL has no regular expressions                                                                    |
+| `items`      | not applied: views type no arrays                                                                                           |
+
+A rule with more than one limit joins them with `AND` after `<c> IS NULL OR`.
+These are the Databricks pack's conditions in T-SQL: null fails `notNull`,
+passes `in` and `notIn` only with `allowNull`, and passes every other kind,
+so no condition written from a rule is ever unknown. `NOT IN` is unknown when
+the value or anything in the list is null; the definitions package never puts
+null in the list (a listed null becomes `allowNull`), and the
+`IS NULL OR` or `IS NOT NULL AND` before it decides a null value, so the
+condition stays true or false. `LEN` leaves out the spaces at the end of a
+text; each space is counted as `_`, so the length is every character's, as
+Spark's `length` is. T-SQL's `%` takes only exact numbers (integers,
+`decimal`, `numeric` and `money` types), so it is used when the view types the
+column as one of those and the value is written without an exponent;
+otherwise, as for `FLOAT` and for a transform's column, whose type the pack
+does not know, the remainder is worked out with `FLOOR`. An expectation with
+no `rule` (one a flow or transform writes) uses its `check` text, which is
+T-SQL there.
+
+`warn` keeps the row in the view and `checks.sql` counts it. `drop` leaves
+the row out of the view, and `checks.sql` counts it. `fail` cannot be
+applied: a view can't stop a load. The definitions package reports it
+`NOT_APPLIED` with the reason "a view can't stop a load; checks.sql checks
+this rule and raises an error when it runs.", the view keeps the row, and
+`checks.sql` raises an error when any row fails it.
+
+### Table checks
+
+A table in a layer whose `does` lists `check` or is `raw` runs its contract's
+table checks in `checks.sql` (in a `raw` layer, each as `warn`). The pack declares no `checks` capability, so the definitions
+package gives a Synapse table its table checks (and `unique`) whatever the
+Platform's `manage.checks` says (definitions specification, section 7.1).
+Databricks and DuckDB count table checks over the table they store, after the
+rows `drop` leaves out; so does this pack, over the rows the view keeps
+(`<kept>`, under "checks.sql"). Each is counted with the metric Databricks
+uses, in T-SQL:
+
+| `metric`                       | Count                                                                                                           |
+| ------------------------------ | --------------------------------------------------------------------------------------------------------------- |
+| `rowCount`                     | `COUNT_BIG(*)`                                                                                                  |
+| `duplicateValues`, one column  | `COUNT_BIG(*) - COUNT_BIG(DISTINCT <c>)`                                                                        |
+| `duplicateValues`, several     | `<kept count> - COUNT_BIG(*)` over `SELECT DISTINCT <c>, … FROM (<kept>) AS [rows] WHERE <c> IS NOT NULL AND …` |
+| `duplicateValues`, whole row   | as several, over the contract's columns                                                                         |
+| `nullValues`                   | `COUNT_BIG(CASE WHEN <c> IS NULL THEN 1 END)`                                                                   |
+| `missingValues`                | `COUNT_BIG(CASE WHEN <c> IS NULL OR <c> IN (<v>, …) THEN 1 END)`; without a list, as `nullValues`               |
+| `invalidValues`, `validValues` | `COUNT_BIG(CASE WHEN <c> IS NOT NULL AND NOT (<c> IN (<v>, …)) THEN 1 END)`                                     |
+| `invalidValues`, `pattern`     | not applied: serverless T-SQL has no regular expressions (`NOT_APPLIED` for `pattern`)                          |
+| `sql`                          | the rule's query, with `${object}` replaced by the view's name, `[<schema>].[<view>]`                           |
+
+`COUNT_BIG(DISTINCT …)` leaves nulls out. Spark's `count(DISTINCT a, b)`
+leaves out a row with a null part, so several columns, and the whole row,
+count the distinct rows that have no null part, and every other row counts
+as a duplicate, as on Databricks. A `sql` check reads the view, which gives the
+same rows.
+
+The rule compares the count, `ISNULL(<count>, 0)`, or with `unit: percent`
+`CASE WHEN <kept count> = 0 THEN 0 ELSE ISNULL(<count>, 0) * 100.0 / <kept count> END`,
+by its operator: `=`, `<>`, `>`, `>=`, `<`, `<=`, `BETWEEN <low> AND <high>`
+and `NOT BETWEEN`. A table check's `fail` is applied: `checks.sql` raises an
+error when it does not pass, and its `warn` returns the count.
+
+### checks.sql
+
+`checks.sql` is one batch, with no `GO`, so it runs as it is in sqlcmd, in an
+Azure Data Factory or Synapse pipeline's Script activity, or in any tool
+that sends T-SQL. It reads the files through `OPENROWSET` with the view's
+columns and cleansing, not through the view, so its row checks also count the
+rows a `drop` check leaves out of the view; its table checks count the rows the
+view keeps. It is, line by line:
+
+1. comments naming the project, and no environment, saying not to edit it,
+   that it counts each row check's failing rows in the files the views read,
+   the rows `drop` checks leave out included, and each table check over the
+   rows the view keeps, returns one row per check, then raises an error for
+   the first `fail` check that fails, and that it stops nothing unless it runs
+   after each landing;
+2. for each table that runs at least one check, in the model's order, `t`
+   counting from 1:
+   - `USE [<database>];` when the table's database is not the one before;
+   - `-- <table>`, the table's name in the definitions;
+   - `DECLARE @rows_<t> BIGINT, [@kept_<t> BIGINT, ]@check_<t>_1 BIGINT, …;`,
+     a variable per check, its row checks first, then its table checks, `c`
+     counting from 1. `@kept_<t>` is declared when the view has `drop` checks
+     and table checks; `<kept count>` is then `@kept_<t>`, else `@rows_<t>`;
+   - one `SELECT` that reads `<rows>` once and sets `@rows_<t>` to
+     `COUNT_BIG(*)`, each row check's variable to
+     `COUNT_BIG(CASE WHEN <condition> THEN NULL ELSE 1 END)`, the rows that
+     fail it (a condition that is unknown fails), and, without `drop` checks,
+     each table check's that is an aggregate to its count:
+     ```sql
+     SELECT
+       @rows_<t> = COUNT_BIG(*),
+       @check_<t>_<c> = <count>,
+       …
+     FROM (
+     <rows>
+     ) AS [rows];
+     ```
+   - with `drop` checks and table checks, a second `SELECT` of the same form
+     over `<kept>`, which sets `@kept_<t>` to `COUNT_BIG(*)` and each table
+     check's that is an aggregate to its count;
+   - then, for each table check that is not an aggregate, a statement of its
+     own: `SELECT @check_<t>_<c> = <kept count> - COUNT_BIG(*) FROM (SELECT DISTINCT … FROM (<kept>) …) AS [distinct_rows];`,
+     or `SET @check_<t>_<c> = (<query>);` for a `sql` check;
+3. one result, a `SELECT` per check joined by `UNION ALL`:
+   `SELECT N'<schema>.<view>' AS [table], N'<name>' AS [check], N'<action>' AS [action], <failing> AS [failing_rows], CASE WHEN <passes> THEN 1 ELSE 0 END AS [passed]`,
+   where for a row check `<failing>` is its variable and `<passes>` is
+   `<failing> = 0`, and for a table check `<failing>` is
+   `ISNULL(@check_<t>_<c>, 0)`, the number its rule compares (for `rowCount`,
+   every row), and `<passes>` is its comparison;
+4. for each `fail` check, in the same order,
+   `IF <failing> > 0 THROW 50000, N'The check "<name>" failed on <schema>.<view>.', 1;`,
+   or for a table check
+   `IF NOT (<comparison>) THROW 50000, N'The table check "<name>" failed on <schema>.<view>.', 1;`.
+   The first that fails ends the batch with that error; every count was
+   returned before it.
+
+`<rows>` is the view's rows before its `drop` checks: `<base>`, deduplicated
+when the table deduplicates. `<kept>` is the view's query, the rows it keeps;
+without `drop` checks, it is `<rows>`. Row checks count `<rows>`, so they also
+count the rows a `drop` check leaves out; table checks count `<kept>`, as the
+other packs count the table they store. Names and text in it, and the database, are
+those of `views.sql`, with the same SQLCMD variables where environments
+differ. A table that runs no check is not in `checks.sql`.
+
+### Running checks.sql
+
+The package README says how to run `checks.sql`: with sqlcmd and the
+environment's checks wrapper, `sqlcmd -S <workspace>-ondemand.sql.azuresynapse.net -i checks/<environment>.sql`,
+from the output folder; in a pipeline's Script activity, with each `$(…)`
+replaced by the environment's value; or as a CI step. It stops nothing unless
+it runs after each landing: a view reads the files each time it is queried,
+and nothing runs `checks.sql` by itself.

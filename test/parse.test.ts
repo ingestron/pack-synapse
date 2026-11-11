@@ -1,7 +1,10 @@
 // What sqlcmd sends for each environment is T-SQL: every batch, once each wrapper's
 // :setvar values are in views.sql, passes the conservative check of tsql-lexer.ts,
 // and that check fails on the faults a fold could bring in.
+import { memoryFiles } from "@ingestron/config";
+import { resolveDefinitions, type ResolvedModel } from "@ingestron/definitions";
 import { describe, expect, it } from "vitest";
+import { synapse } from "../src/index.js";
 import {
   erpEnvironments,
   erpProject,
@@ -10,6 +13,9 @@ import {
   sqlcmdRun,
   suppliedTexts,
 } from "./fold-helpers.js";
+import { crmFiles } from "./quality-project.js";
+import { runSqlcmd } from "./sqlcmd-model.js";
+import { landing, tables } from "./stub-packs.js";
 import { batchProblems } from "./tsql-lexer.js";
 
 const environments = ["dev", "test", "prod"];
@@ -68,5 +74,30 @@ describe("the T-SQL check", () => {
 
   it("finds a sqlcmd variable that no value replaced", () => {
     expect(batchProblems("SELECT '$(missing)'")).toEqual(["a sqlcmd variable left"]);
+  });
+});
+
+describe("views.sql and checks.sql with checks and cleansing", () => {
+  it("are T-SQL batches in every environment", () => {
+    const models = Object.fromEntries(
+      ["dev", "prod"].map((environment) => [
+        environment,
+        resolveDefinitions(memoryFiles(crmFiles()), {
+          packs: [landing, synapse, tables],
+          environment,
+          deployTime: true,
+          environmentsTogether: true,
+        }).model as ResolvedModel,
+      ]),
+    );
+    const built = fold(models);
+    for (const target of ["dev", "prod"]) {
+      const views = sqlcmdRun(built.files, target);
+      const checks = runSqlcmd({ files: built.files, input: `checks/${target}.sql` });
+      expect([...views.errors, ...checks.errors]).toEqual([]);
+      expect(checks.exitsOnError).toBe(true);
+      expect(checks.batches).toHaveLength(1);
+      expect([...views.batches, ...checks.batches].flatMap(batchProblems)).toEqual([]);
+    }
   });
 });

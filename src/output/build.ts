@@ -1,27 +1,24 @@
 // views.sql: one re-runnable script, a view per table that a Synapse method
 // keeps or serves, in the model's order (inputs first).
 import type { ResolvedModel } from "@ingestron/definitions";
-import {
-  hasView,
-  plan,
-  type CodePart,
-  type Statement,
-  type TransformPlan,
-  type ViewsPlan,
-} from "../plan/index.js";
-import { filesQuery, quote, viewStatement } from "../sql/index.js";
+import { hasView, plan, type Statement, type ViewsPlan } from "../plan/index.js";
+import { grantStatements, quote, revokeStatement, viewStatement } from "../sql/index.js";
+import { checksFile, writeChecks } from "./checks.js";
+import { viewQuery } from "./rows.js";
 
 /** The script's path in the pack's output folder. */
 export const viewsFile = "views.sql";
 
 /**
- * The pack's files for one environment: `views.sql`, or nothing when no table uses a
- * Synapse method.
+ * The pack's files for one environment: `views.sql`, and `checks.sql` when a table runs a
+ * check; nothing when no table uses a Synapse method.
  * @example build(model)["views.sql"]
  */
 export function build(model: ResolvedModel): Record<string, string> {
   if (!model.tables.some(hasView)) return {};
-  return { [viewsFile]: writeViews(plan(model)) };
+  const views = plan(model);
+  const checks = writeChecks(views);
+  return { [viewsFile]: writeViews(views), ...(checks !== undefined && { [checksFile]: checks }) };
 }
 
 /**
@@ -36,28 +33,19 @@ export function writeViews(views: ViewsPlan): string {
   return `${[header, ...views.statements.map(statementText)].join("\n\n")}\n`;
 }
 
-/** One statement of the script, ending with `GO`. */
+/** One statement of the script, ending with `GO`: a view is followed by its grants and revokes. */
 export function statementText(statement: Statement): string {
   if (statement.kind === "use") return `USE ${quote(statement.database)};\nGO`;
-  const name = { schema: statement.schema, table: statement.name };
-  const { query } = statement;
-  return viewStatement(name, query.kind === "files" ? filesQuery(query) : transformQuery(query));
-}
-
-/** The transform's SQL inside the view, selecting the contract's columns. */
-function transformQuery(query: TransformPlan): string {
-  const code = codeOf(query);
-  const columns = query.columns.map(quote).join(", ");
-  return [`SELECT ${columns}`, "FROM (", code, ") AS [source]"].join("\n");
-}
-
-/** The transform's code as views.sql holds it, each input named by its view. */
-export function codeOf(query: TransformPlan): string {
-  return query.code.map(codeText).join("");
-}
-
-function codeText(part: CodePart): string {
-  if (typeof part === "string") return part;
-  const database = part.database === undefined ? "" : `${quote(part.database)}.`;
-  return `${database}${quote(part.schema)}.${quote(part.name)}`;
+  const view = viewStatement(
+    { schema: statement.schema, table: statement.name },
+    viewQuery(statement),
+  );
+  const { access } = statement;
+  if (!access) return view;
+  const principals = access.grants.map((grant) => grant.principal);
+  return [
+    view,
+    ...(principals.length > 0 ? [grantStatements(statement, principals)] : []),
+    ...(access.exact ? [revokeStatement(statement, principals)] : []),
+  ].join("\n\n");
 }

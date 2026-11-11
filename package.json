@@ -1,6 +1,6 @@
 {
   "name": "@ingestron/pack-synapse",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "description": "Azure Synapse serverless SQL methods for Ingestron: SQL views over landed files, transforms as views, and views over tables other packs store.",
   "license": "Apache-2.0",
   "author": "Ingestron <hello@ingestron.io>",
@@ -34,6 +34,7 @@
     "lint": "eslint .",
     "test": "vitest run",
     "check:docs": "tsx scripts/check-docs.ts",
+    "zones": "node scripts/windows-zones.mjs",
     "validate": "pnpm format:check && pnpm secrets:check && pnpm licences:check && node --test scripts/*.test.mjs && node scripts/check-modules.mjs && pnpm lint && pnpm typecheck && pnpm test && pnpm check:docs && pnpm check:api",
     "api": "api-extractor run --local",
     "check:api": "api-extractor run",
@@ -45,11 +46,11 @@
     "prepack": "pnpm build"
   },
   "peerDependencies": {
-    "@ingestron/definitions": "^1.9.0"
+    "@ingestron/definitions": "^1.13.0"
   },
   "devDependencies": {
     "@ingestron/config": "^1.5.0",
-    "@ingestron/definitions": "^1.9.0",
+    "@ingestron/definitions": "^1.13.0",
     "@microsoft/api-extractor": "7.59.4",
     "@types/node": "22.20.5",
     "eslint": "10.13.0",

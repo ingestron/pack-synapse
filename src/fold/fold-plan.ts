@@ -2,6 +2,7 @@
 // same order, each value written as it is or as a variable (spec section 8.1).
 import { isDeepStrictEqual } from "node:util";
 import type { EnvironmentsProblem, ResolvedTable, Step } from "@ingestron/definitions";
+import { foldAccess } from "./fold-access.js";
 import { foldTransform, type Owner } from "./fold-code.js";
 import { placeText, type Fold, type Kind, type Setting } from "./fold-places.js";
 import { sourceStep, viewingStep } from "../sql/index.js";
@@ -92,12 +93,14 @@ function foldView(
     });
   const schema = at("schema", (view) => view.schema, "the schema", "naming.schema");
   const name = at("view", (view) => view.name, "the name", "naming.table");
+  const access = foldAccess(fold, views, table, label);
+  const folded = { ...first, schema, name, ...(access && { access }) };
   if (first.query.kind === "transform") {
     const queries = valuesOf(views, (view) => view.query as typeof first.query);
-    return { ...first, schema, name, query: foldTransform(fold, queries, owner) };
+    return { ...folded, query: foldTransform(fold, queries, owner) };
   }
   const files = valuesOf(views, (view) => view.query as FilesPlan);
-  return { ...first, schema, name, query: foldFiles(fold, files, table, label) };
+  return { ...folded, query: foldFiles(fold, files, table, label) };
 }
 
 /** Where a setting of a step is written, when the definitions write it. */

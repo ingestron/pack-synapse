@@ -1,0 +1,7 @@
+apiVersion: ingestron.io/v1
+kind: Platform
+id: azure
+settings:
+  synapse-view:
+    data_source: landing
+    data_source_location: abfss://landing@acct.dfs.core.windows.net
