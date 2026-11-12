@@ -712,7 +712,8 @@ WHERE [_ingestron_row] = 1
 ```
 
 Otherwise the rows are `<base>`. `<key>` is each primary key column, in the
-contract's order, and `<order_by>` each `order_by` column, as written; a view
+key's order (from the contract or the source metadata), and `<order_by>` each
+`order_by` column, as written; a view
 over files then orders by the file, last first, so the same row is kept each
 time it is read; a transform has no file. T-SQL sorts null below every value,
 so `DESC` puts nulls last, as Spark and DuckDB do.
