@@ -697,7 +697,7 @@ each indented two spaces:
 - over a transform, `SELECT <columns> FROM (<code>) AS [source]`.
 
 With deduplicate, the rows are `<base>` numbered and the first of each key
-kept, with `<outputs>` the contract's columns and then the columns the landing
+kept, with `<outputs>` the table's columns and then the columns the landing
 step adds:
 
 ```sql
