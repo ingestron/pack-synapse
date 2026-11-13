@@ -343,7 +343,7 @@ so the pack applies none of it, and the files are the same as with 2.1.
   count every check ([Checks and cleansing](#checks-and-cleansing)). A layer
   without `does` gets the views it had: each contract rule there is
   `NOT_APPLIED`, with a hint to add `check` to the layer's `does`.
-- Needs `@ingestron/definitions` 1.13 or later.
+- Needs `@ingestron/definitions` 1.14 or later.
 
 ## What changed in 2.0
 
