@@ -25,9 +25,9 @@ npm install @ingestron/pack-synapse   # the ingestron CLI already includes it
 | `synapse-serve` | serve     | A view over the files another pack's store keeps, read from where that pack says.               |
 
 Views read Parquet and CSV files through an external data source and type
-each column from the contract. `views.sql` is re-runnable: it selects each
-view's database with `USE`, and creates or alters each view. Views change only
-when contracts, transforms or naming change.
+each column from the table's columns. `views.sql` is re-runnable: it selects
+each view's database with `USE`, and creates or alters each view. Views change
+only when contracts, source metadata, transforms or naming change.
 
 ## Views only
 
@@ -63,7 +63,8 @@ workspace's read access to the storage, and report users' permissions.
 
 ## Columns and transforms
 
-Each view's columns come from the contract, typed from their `logicalType`.
+Each view's columns come from the table's columns, which are its contract's, or
+its source metadata's when it has no contract, typed from their `logicalType`.
 When Synapse is listed first, a column's `physicalType` is used as written, so
 `DECIMAL(18,2)` keeps money exact; otherwise the type follows the
 `logicalType`. Strings use the UTF-8 binary collation Microsoft recommends for
@@ -76,9 +77,9 @@ A transform's SQL is one T-SQL query over its inputs' views, written
 or end with `ORDER BY` (a trailing `;` is dropped), and it names only tables
 listed in `inputs`.
 
-Columns the landed files carry beyond the contract, such as ADF's audit
-columns, follow the contract's columns. They are read as text, and timestamps
-are converted to `DATETIME2(7)`.
+Columns the landed files carry beyond the table's columns, such as ADF's audit
+columns, follow them. They are read as text, and timestamps are converted to
+`DATETIME2(7)`.
 
 ## Checks and cleansing
 

@@ -697,7 +697,7 @@ each indented two spaces:
 - over a transform, `SELECT <columns> FROM (<code>) AS [source]`.
 
 With deduplicate, the rows are `<base>` numbered and the first of each key
-kept, with `<outputs>` the contract's columns and then the columns the landing
+kept, with `<outputs>` the table's columns and then the columns the landing
 step adds:
 
 ```sql
@@ -712,10 +712,11 @@ WHERE [_ingestron_row] = 1
 ```
 
 Otherwise the rows are `<base>`. `<key>` is each primary key column, in the
-contract's order, and `<order_by>` each `order_by` column, as written; a view
-over files then orders by the file, last first, so the same row is kept each
-time it is read; a transform has no file. T-SQL sorts null below every value,
-so `DESC` puts nulls last, as Spark and DuckDB do.
+key's order (from the contract or the source metadata), and `<order_by>` each
+`order_by` column, as written; a view over files then orders by the file, last
+first, so the same row is kept each time it is read; a transform has no file.
+T-SQL sorts null below every value, so `DESC` puts nulls last, as Spark and
+DuckDB do.
 
 With at least one `drop` check, the view keeps only the rows that pass every
 `drop` check:
