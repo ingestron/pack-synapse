@@ -46,14 +46,14 @@
     "prepack": "pnpm build"
   },
   "peerDependencies": {
-    "@ingestron/definitions": "^1.14.0"
+    "@ingestron/definitions": "^1.15.0"
   },
   "dependencies": {
-    "@ingestron/pack-adf": "^2.4.0"
+    "@ingestron/pack-adf": "^2.5.0"
   },
   "devDependencies": {
     "@ingestron/config": "^1.5.0",
-    "@ingestron/definitions": "^1.14.0",
+    "@ingestron/definitions": "^1.15.0",
     "@microsoft/api-extractor": "7.59.4",
     "@types/node": "22.20.5",
     "eslint": "10.13.0",
