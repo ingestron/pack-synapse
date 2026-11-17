@@ -19,11 +19,32 @@ const metadata = [
 
 /** The project's flow with its table naming no contract, and the table's metadata. */
 const withoutContract = {
+  "standard.yaml": base["standard.yaml"]!.replace("landing@1, synapse@2", "synapse@2, landing@1"),
   "flow.yaml": base["flow.yaml"]!.replace(", contract: orders", ""),
   "erp.metadata.yaml": metadata,
 };
 
 describe("a table with no contract", () => {
+  it("preserves observed money precision without adding quality promises", () => {
+    const changed = {
+      ...withoutContract,
+      "erp.metadata.yaml": metadata.replace("sourceType: decimal", "sourceType: money"),
+    };
+    const { files, model } = generate(changed);
+    expect(model?.standard.packs[0]).toBe("synapse@2");
+    expect(model?.tables[0]?.contract.columns[1]?.type).toBe("DECIMAL(19,4)");
+    expect(files["views.sql"]).toContain("[total] DECIMAL(19,4)");
+    expect(model?.tables[0]?.contract.checks).toEqual([]);
+    expect(model?.tables[0]?.contract.columns.every((column) => column.nullable)).toBe(true);
+  });
+  it("keeps a standard's explicit type ahead of source precision", () => {
+    const { files } = generate({
+      ...withoutContract,
+      "erp.metadata.yaml": metadata.replace("sourceType: decimal", "sourceType: money"),
+      "standard.yaml": withoutContract["standard.yaml"] + "types: { number: 'DECIMAL(12,3)' }\n",
+    });
+    expect(files["views.sql"]).toContain("[total] DECIMAL(12,3)");
+  });
   it("views its files typed by the metadata's columns", () => {
     const { result, model, files } = generate(withoutContract);
     expect(result.diagnostics).toEqual([]);

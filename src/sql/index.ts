@@ -28,3 +28,4 @@ export {
 } from "./table-checks.js";
 export { grantStatements, revokeStatement, type ViewName } from "./grants.js";
 export { synapseTypes } from "./types.js";
+export { metadataType } from "./metadata-types.js";

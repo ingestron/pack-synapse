@@ -1,14 +1,24 @@
 // The pack: views in Azure Synapse serverless SQL over files and tables other
 // packs land or store, and transforms as views.
 import type { Pack, ResolvedModel } from "@ingestron/definitions";
-import { build } from "./output/index.js";
-import { buildEnvironments } from "./fold/index.js";
+import { build as sqlBuild } from "./output/index.js";
+import { buildEnvironments as sqlEnvironments } from "./fold/index.js";
+import { adf } from "@ingestron/pack-adf";
+import {
+  pipelineConnectors,
+  pipelineProblems,
+  synapseCopy,
+  pipelineEnvironments,
+  pipelineFiles,
+  pipelineRequest,
+} from "./pipelines/index.js";
 import { hasView } from "./plan/index.js";
 import { sqlcmdProblems } from "./fold/index.js";
 import { capabilities, contract, platformSection } from "./methods/index.js";
 import { intent, request } from "./methods/index.js";
 import { synapseServe, synapseSql, synapseView } from "./methods/index.js";
 import { synapseTypes } from "./sql/index.js";
+import { metadataType } from "./sql/index.js";
 import { canonical, viewingStep } from "./sql/index.js";
 
 /**
@@ -19,6 +29,7 @@ import { canonical, viewingStep } from "./sql/index.js";
 export const synapse: Pack = {
   id: "synapse",
   version: 2,
+  metadataType,
   defaults: {
     naming: {
       catalog: "{{ project }}_{{ environment }}",
@@ -36,20 +47,42 @@ export const synapse: Pack = {
     "synapse-view": synapseView,
     "synapse-sql": synapseSql,
     "synapse-serve": synapseServe,
+    "synapse-copy": synapseCopy,
   },
-  build,
-  buildEnvironments,
+  connectors: pipelineConnectors,
+  build: (model) => ({ ...sqlBuild(model), ...pipelineFiles(model) }),
+  buildEnvironments: (models) => {
+    const sql = sqlEnvironments(models);
+    const pipelines = pipelineEnvironments(models);
+    const problems = [...sql.problems, ...pipelines.problems];
+    const failed = problems.some((problem) => problem.severity === "error");
+    return {
+      files: failed ? {} : { ...sql.files, ...pipelines.files },
+      deployValues: sql.deployValues,
+      problems,
+    };
+  },
   check: (model) => [
     ...transformInputs(model),
     ...dataSourceLocations(model),
     ...sqlcmdProblems(model),
+    ...pipelineProblems(model),
   ],
-  request,
+  request: (model) => [...request(model), ...pipelineRequest(model)],
+  checkFirstWrites: (files, generatedBefore, now) =>
+    adf.checkFirstWrites?.(workspaceFiles(files), generatedBefore, now) ?? [],
   contract,
   platformSection,
   capabilities,
   intent,
 };
+
+/** The workspace artifacts among a build's files, the ones the ADF pack's first-write rules read. */
+function workspaceFiles(files: Readonly<Record<string, string>>): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(files).filter(([path]) => path.startsWith("workspace/")),
+  );
+}
 
 /** A T-SQL transform is kept by synapse-view and reads other tables' views. */
 function transformInputs(model: ResolvedModel): string[] {

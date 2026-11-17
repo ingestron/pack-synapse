@@ -1,3 +1,4 @@
+import { compactSql } from "./sql-text.js";
 // Access (spec/behaviour.md, "Access"): views.sql grants SELECT on each view kept by
 // synapse-view to its roles' principals, and with exact grants revokes what they do not give.
 import { describe, expect, it } from "vitest";
@@ -36,7 +37,9 @@ describe("grants in views.sql", () => {
       principals: `principals: { auditors: "team's analysts" }`,
     });
     const sql = views(files);
-    expect(sql).toContain("GRANT SELECT ON OBJECT::[bronze].[orders] TO [team's analysts];");
+    expect(compactSql(sql)).toContain(
+      compactSql("GRANT SELECT ON OBJECT::[bronze].[orders] TO [team's analysts];"),
+    );
     expect(sql).toContain("[principals].[name] IN (N'team''s analysts'));");
   });
 
@@ -105,8 +108,10 @@ describe("one contract on a view and on a table another pack keeps", () => {
 
   it("grants the view, and reports the mask once, naming only the view", () => {
     const sql = views(files);
-    expect(sql).toContain(
-      "GO\n\nGRANT SELECT ON OBJECT::[bronze].[orders] TO [marketing-analysts-dev];\nGO\n",
+    expect(compactSql(sql)).toContain(
+      compactSql(
+        "GO\n\nGRANT SELECT ON OBJECT::[bronze].[orders] TO [marketing-analysts-dev];\nGO\n",
+      ),
     );
     expect(sql.match(/GRANT/g)).toHaveLength(1);
     expect(diagnostics(files)).toEqual([{ code: "NOT_APPLIED", message: maskNotApplied }]);

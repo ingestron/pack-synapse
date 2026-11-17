@@ -1,3 +1,4 @@
+import { compactSql } from "./sql-text.js";
 // Requests the platform team can act on, views across databases, data source
 // locations written either way, CSV options from the landing step, and types.
 import type { ResolvedModel } from "@ingestron/definitions";
@@ -49,7 +50,7 @@ describe("several databases", () => {
     expect(sql.indexOf("USE [erp_bronze]")).toBeLessThan(
       sql.indexOf("CREATE OR ALTER VIEW [bronze]"),
     );
-    expect(sql).toContain("FROM [erp_bronze].[bronze].[orders]");
+    expect(compactSql(sql)).toContain(compactSql("FROM [erp_bronze].[bronze].[orders]"));
   });
 });
 
@@ -123,13 +124,15 @@ describe("types and references", () => {
   it("recognises {{- tables.x -}}", () => {
     const transform =
       "apiVersion: ingestron.io/v1\nkind: Transform\nid: totals\ninputs: [orders]\ncode: SELECT id, total FROM {{- tables.orders -}}\ncontract: orders\n";
-    expect(views({ "totals.yaml": transform })).toContain("FROM [bronze].[orders]");
+    expect(compactSql(views({ "totals.yaml": transform }))).toContain(
+      compactSql("FROM [bronze].[orders]"),
+    );
   });
 
   it("checks required in a layer whose does lists check", () => {
     expect(synapse.contract?.["schema.*.properties.*.required"]).toEqual({
       use: "used",
-      does: "A not-null check with the standard's quality.required action, in a layer whose does lists check, or is raw (each check counted as warn).",
+      does: "A not-null check with the standard's quality.required action, in a layer whose does lists check, or is raw (each check counted as warn). Add check to the layer's does to generate checks.sql; run that script separately to count failures. Generation itself does not execute checks.",
     });
   });
 

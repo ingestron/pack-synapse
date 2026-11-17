@@ -1,3 +1,4 @@
+import { compactSql } from "./sql-text.js";
 // views.sql: views over landed files, transforms as views, and views over tables other packs store.
 import { describe, expect, it } from "vitest";
 import { base, generate, problems, views } from "./project.js";
@@ -83,7 +84,9 @@ describe("transforms as views", () => {
     const sql = views({ "daily.yaml": transform, "orders.yaml": daily(base["orders.yaml"]!) });
     const view = [
       "CREATE OR ALTER VIEW [silver].[daily] AS",
-      "SELECT [id], [total]",
+      "SELECT",
+      "  [id],",
+      "  [total]",
       "FROM (",
       "SELECT id, SUM(total) AS total FROM [bronze].[orders] GROUP BY id",
       ") AS [source];",
@@ -121,8 +124,10 @@ describe("views over tables other packs store", () => {
     );
 
   it("views where the store pack keeps the table", () => {
-    expect(views({ "flow.yaml": stored("keep") })).toContain(
-      "CREATE OR ALTER VIEW [bronze].[orders] AS\nSELECT *\nFROM OPENROWSET(\n  BULK 'published/orders/*.parquet',",
+    expect(compactSql(views({ "flow.yaml": stored("keep") }))).toContain(
+      compactSql(
+        "CREATE OR ALTER VIEW [bronze].[orders] AS\nSELECT *\nFROM OPENROWSET(\n  BULK 'published/orders/*.parquet',",
+      ),
     );
   });
 
@@ -151,11 +156,13 @@ describe("audit columns the landed files carry", () => {
     expect(sql).toContain(
       `  [_loaded_at] VARCHAR(40) ${utf8},\n  [_run_id] VARCHAR(8000) ${utf8}\n) AS [rows]`,
     );
-    expect(sql).toContain(", CONVERT(DATETIME2(7), [_loaded_at], 127) AS [_loaded_at], [_run_id]");
-    expect(sql).not.toContain("SELECT *");
+    expect(sql).toContain(
+      ",\n  CONVERT(DATETIME2(7), [_loaded_at], 127) AS [_loaded_at],\n  [_run_id]",
+    );
+    expect(compactSql(sql)).not.toContain(compactSql("SELECT *"));
   });
 
   it("leave views without them as they were", () => {
-    expect(views()).toContain("SELECT *");
+    expect(compactSql(views())).toContain(compactSql("SELECT *"));
   });
 });
