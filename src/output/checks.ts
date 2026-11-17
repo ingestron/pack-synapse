@@ -145,7 +145,14 @@ function outcome(checked: readonly Checked[]): string {
       const passes =
         check.kind === "row" ? `${variable} = 0` : comparison(check.check, variable, kept);
       results.push(
-        `SELECT ${unicode(shown)} AS [table], ${unicode(check.name)} AS [check], ${unicode(check.action)} AS [action], ${failing} AS [failing_rows], CASE WHEN ${passes} THEN 1 ELSE 0 END AS [passed]`,
+        [
+          "SELECT",
+          `  ${unicode(shown)} AS [table],`,
+          `  ${unicode(check.name)} AS [check],`,
+          `  ${unicode(check.action)} AS [action],`,
+          `  ${failing} AS [failing_rows],`,
+          `  CASE WHEN ${passes} THEN 1 ELSE 0 END AS [passed]`,
+        ].join("\n"),
       );
       if (check.action !== "fail") return;
       const what = check.kind === "row" ? "check" : "table check";

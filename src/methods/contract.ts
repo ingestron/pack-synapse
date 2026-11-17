@@ -35,12 +35,14 @@ export const contract: Record<string, ContractUse> = {
     reason: "Files hold columns under their contract names; the pack that lands them renames.",
   },
   [`${column}.logicalType`]: used("Types the column in the view."),
-  [`${column}.physicalType`]: used("Types a column that has no logicalType."),
+  [`${column}.physicalType`]: used(
+    "Sets the column's type as written when Synapse keeps the table, taking precedence over logicalType. When Synapse serves another pack's table, its logicalType is mapped to a Synapse type first.",
+  ),
   [`${column}.quality`]: checks(
     `Rules that allow no failing row become row checks in the view and checks.sql, the others table checks in checks.sql, ${where}. Patterns are not applied.`,
   ),
   [`${column}.required`]: used(
-    `A not-null check with the standard's quality.required action, ${where}.`,
+    `A not-null check with the standard's quality.required action, ${where}. Add check to the layer's does to generate checks.sql; run that script separately to count failures. Generation itself does not execute checks.`,
   ),
   [`${column}.logicalTypeOptions`]: checks(
     `Limits become row checks with quality.default's action, ${where}: length, minimum and maximum, and multipleOf. pattern and list items are not applied; format is documentation.`,

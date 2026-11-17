@@ -1,3 +1,4 @@
+import { compactSql } from "./sql-text.js";
 // Quality and cleansing on views over files, and table checks (spec/behaviour.md, "Quality and
 // cleansing"), on the small ERP project.
 import { describe, expect, it } from "vitest";
@@ -53,7 +54,9 @@ describe("a view over files", () => {
         "CREATE OR ALTER VIEW [bronze].[orders] AS",
         "SELECT *",
         "FROM (",
-        "SELECT [id], [total]",
+        "SELECT",
+        "  [id],",
+        "  [total]",
         "FROM (",
         "SELECT *, ROW_NUMBER() OVER (PARTITION BY [id] ORDER BY [total] DESC, [_ingestron_file] DESC) AS [_ingestron_row]",
         "FROM (",
@@ -85,7 +88,9 @@ describe("a view over files", () => {
       ),
     });
     const view = viewOf(files["views.sql"]!, "[bronze].[orders]");
-    expect(view).toContain("SELECT [id], [total], [_loaded_at], [_run_id]\nFROM (");
+    expect(compactSql(view)).toContain(
+      compactSql("SELECT [id], [total], [_loaded_at], [_run_id]\nFROM ("),
+    );
     expect(view).toContain(
       "  CONVERT(DATETIME2(7), [_loaded_at], 127) AS [_loaded_at],\n  [_run_id],\n  [rows].filepath() AS [_ingestron_file]\n",
     );
@@ -112,8 +117,14 @@ describe("a view over files", () => {
   });
 
   it("checks nothing in a layer whose does is not written, as before", () => {
-    const files = run({ "orders.yaml": column("id", "required: true") });
+    const changes = { "orders.yaml": column("id", "required: true") };
+    const files = run(changes);
     expect(Object.keys(files)).toEqual(["views.sql"]);
+    const warning = generate(changes).result.diagnostics.find(
+      (item) => item.code === "NOT_APPLIED",
+    );
+    expect(warning?.hint).toContain("Synapse writes checks.sql");
+    expect(warning?.hint).toContain("generating files does not execute checks");
   });
 });
 
@@ -167,10 +178,12 @@ describe("cleansing values", () => {
       "[bronze].[orders]",
     );
     expect(view).toContain("  COALESCE([total], 1.5) AS [total],");
-    expect(view).toContain("  COALESCE([paid], CAST(1 AS BIT)) AS [paid],");
-    expect(view).toContain("  COALESCE([due], CAST('2026-01-01' AS DATE)) AS [due],");
-    expect(view).toContain(
-      "  COALESCE([at], CAST('2026-01-01 00:00:00' AS DATETIME2(7))) AS [at],",
+    expect(compactSql(view)).toContain(compactSql("  COALESCE([paid], CAST(1 AS BIT)) AS [paid],"));
+    expect(compactSql(view)).toContain(
+      compactSql("  COALESCE([due], CAST('2026-01-01' AS DATE)) AS [due],"),
+    );
+    expect(compactSql(view)).toContain(
+      compactSql("  COALESCE([at], CAST('2026-01-01 00:00:00' AS DATETIME2(7))) AS [at],"),
     );
     expect(view).toContain("  CASE [note] WHEN 'it''s' THEN NULL ELSE [note] END AS [note]\n");
   });

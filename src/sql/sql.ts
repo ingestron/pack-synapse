@@ -57,9 +57,7 @@ function selectClause(input: FilesInput): string {
     ),
     ...(input.withFile ? [`[rows].filepath() AS ${quote(fileColumn)}`] : []),
   ];
-  return listed
-    ? `SELECT\n${items.map((item) => `  ${item}`).join(",\n")}`
-    : `SELECT ${items.join(", ")}`;
+  return `SELECT\n${items.map((item) => `  ${item}`).join(",\n")}`;
 }
 
 /** The column that names each row's file, for deduplicate; no file holds it. */

@@ -23,7 +23,11 @@ const used = (does: string, source: string, onlyWhere?: LayerDuty): IntentUse =>
   use: "used",
   does,
   status: ga(source),
-  ...(onlyWhere && { onlyWhere }),
+  ...(onlyWhere && {
+    onlyWhere,
+    whereHint:
+      "Synapse writes checks.sql for these rules. Run that script separately to count failures; generating files does not execute checks or stop the copy pipeline.",
+  }),
 });
 /** Reasons start in lower case: they follow "<What> isn't applied on <pack>: ". */
 const notApplicable = (reason: string): IntentUse => ({ use: "not-applicable", reason });

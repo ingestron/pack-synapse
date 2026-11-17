@@ -1,3 +1,4 @@
+import { compactSql } from "./sql-text.js";
 // Views that would crash, read the wrong columns, or hand SQL to the wrong engine.
 import { describe, expect, it } from "vitest";
 import { base, problems, views } from "./project.js";
@@ -39,7 +40,9 @@ describe("columns", () => {
       '{ name: total, logicalType: number, physicalName: "Total Amount" }',
     );
     const sql = views({ "orders.yaml": contract });
-    expect(sql).toContain("SELECT [id], [Total Amount] AS [total]\nFROM OPENROWSET(");
+    expect(compactSql(sql)).toContain(
+      compactSql("SELECT [id], [Total Amount] AS [total]\nFROM OPENROWSET("),
+    );
     expect(sql).toContain(") WITH (\n  [id] BIGINT,\n  [Total Amount] FLOAT\n) AS [rows]");
   });
 
@@ -66,8 +69,8 @@ describe("transform SQL", () => {
   const daily = '"synapse-sql" for table "daily": ';
 
   it("drops a trailing semicolon, which a view's subquery cannot hold", () => {
-    expect(views(changes("SELECT id FROM {{ tables.orders }};"))).toContain(
-      "FROM (\nSELECT id FROM [bronze].[orders]\n) AS [source];",
+    expect(compactSql(views(changes("SELECT id FROM {{ tables.orders }};")))).toContain(
+      compactSql("FROM (\nSELECT id FROM [bronze].[orders]\n) AS [source];"),
     );
   });
 

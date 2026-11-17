@@ -1,3 +1,4 @@
+import { compactSql } from "../sql-text.js";
 // One views.sql for every environment: variables only where environments differ,
 // named after what they stand for, and a wrapper per environment that sets them.
 import { describe, expect, it } from "vitest";
@@ -36,7 +37,7 @@ describe("views.sql for every environment", () => {
     expect(views).toContain("IF SCHEMA_ID(N'bronze') IS NULL EXEC(N'CREATE SCHEMA [bronze]');");
     expect(views).toContain("CREATE OR ALTER VIEW [bronze].[orders] AS");
     expect(views).toContain("  BULK 'erp/orders/orders.parquet',");
-    expect(views).toContain("FROM [bronze].[orders]\nWHERE");
+    expect(compactSql(views)).toContain(compactSql("FROM [bronze].[orders]\nWHERE"));
     expect(views.match(/\$\(/g)).toHaveLength(4);
   });
 
@@ -108,7 +109,9 @@ describe("variable names", () => {
     const sql = fold(several).files["views.sql"]!;
     expect(sql).toContain("USE [$(database_bronze)];");
     expect(sql).toContain("USE [$(database_silver)];");
-    expect(sql).toContain("FROM [$(database_bronze)].[bronze].[orders]\nWHERE");
+    expect(compactSql(sql)).toContain(
+      compactSql("FROM [$(database_bronze)].[bronze].[orders]\nWHERE"),
+    );
     expect(foldFailures(several)).toEqual([]);
   });
 
@@ -121,7 +124,9 @@ describe("variable names", () => {
     const sql = fold(named).files["views.sql"]!;
     expect(sql).toContain("CREATE OR ALTER VIEW [$(schema_bronze)].[$(view_orders)] AS");
     expect(sql).toContain("EXEC(N'CREATE SCHEMA [$(schema_bronze)]')");
-    expect(sql).toContain("FROM [$(schema_bronze)].[$(view_orders)]\nWHERE");
+    expect(compactSql(sql)).toContain(
+      compactSql("FROM [$(schema_bronze)].[$(view_orders)]\nWHERE"),
+    );
     expect(foldFailures(named)).toEqual([]);
   });
 

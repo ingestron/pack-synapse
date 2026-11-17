@@ -391,3 +391,36 @@ one of them, `SELECT` and `VIEW DEFINITION` to another user, `SELECT` on the
 schema, `SELECT` with grant option, a `DENY`, a column `SELECT` and a
 `SELECT` to a role, the batch revoked exactly the `ALTER`, the other user's
 two permissions and the role's `SELECT`; a second run revoked nothing.
+
+# Workspace pipeline artifacts and fixed-point source types
+
+Accessed 2026-11-14:
+
+- [Synapse and Data Factory differences](https://learn.microsoft.com/en-us/azure/synapse-analytics/data-integration/concepts-data-factory-differences):
+  Synapse has workspace integration artifacts; it does not use Data Factory's
+  ARM pipeline deployment contract. Integration runtime sharing differs.
+- [Synapse pipeline resource](https://learn.microsoft.com/en-us/rest/api/synapse/data-plane/pipeline/create-or-update-pipeline?view=rest-synapse-data-plane-2020-12-01):
+  activities, dataset references, policy, concurrency and pipeline parameters.
+- [Synapse linked service resource](https://learn.microsoft.com/en-us/rest/api/synapse/data-plane/linked-service/create-or-update-linked-service?view=rest-synapse-data-plane-2020-12-01):
+  Azure SQL Database, Key Vault and ADLS Gen2 linked services and runtime references.
+- [Synapse trigger resource](https://learn.microsoft.com/en-us/rest/api/synapse/data-plane/trigger/create-or-update-trigger?view=rest-synapse-data-plane-2020-12-01):
+  ScheduleTrigger recurrence and its pipelines array. The workspace route uses
+  this shape rather than retaining ADF tumbling-window expressions.
+- [SQL Server decimal and money values](https://learn.microsoft.com/en-us/sql/connect/python/mssql-python/decimal-money?view=sql-server-ver16):
+  money has precision 19 and scale 4; smallmoney precision 10 and scale 4.
+
+# Workspace triggers
+
+Accessed 2026-11-15. The pages are those the ADF pack's reference gives under
+"Triggers" (each applies to Azure Data Factory and Azure Synapse Analytics, and
+was last updated 2026-08-05):
+
+- [Create schedule triggers](https://learn.microsoft.com/en-us/azure/data-factory/how-to-create-schedule-trigger):
+  `ScheduleTrigger`, its `recurrence` and `pipelines` entries. The workspace
+  route writes a flow's schedule trigger as the ADF pack does, with the
+  Windows `timeZone` name.
+- [Create tumbling window triggers](https://learn.microsoft.com/en-us/azure/data-factory/how-to-create-tumbling-window-trigger):
+  `TumblingWindowTrigger` and its one pipeline. A tumbling window on a full
+  snapshot is allowed; the pipeline does not use the window.
+- [Pipeline execution and triggers](https://learn.microsoft.com/en-us/azure/data-factory/concepts-pipeline-execution-triggers):
+  both trigger types exist in a Synapse workspace.
