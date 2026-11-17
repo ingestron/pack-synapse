@@ -48,6 +48,9 @@
   "peerDependencies": {
     "@ingestron/definitions": "^1.14.0"
   },
+  "dependencies": {
+    "@ingestron/pack-adf": "^2.4.0"
+  },
   "devDependencies": {
     "@ingestron/config": "^1.5.0",
     "@ingestron/definitions": "^1.14.0",

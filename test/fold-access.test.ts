@@ -1,3 +1,4 @@
+import { compactSql } from "./sql-text.js";
 // Grants with every environment together (spec/behaviour.md, "Access" and section 8): a
 // principal that differs between environments is a SQLCMD variable, the fold property
 // holds against the sqlcmd model, and what cannot be folded is refused.
@@ -36,10 +37,14 @@ describe("grants in every environment together", () => {
   it("makes a principal that differs a variable, in the grant and in what exact grants keep", () => {
     expect(built.problems).toEqual([]);
     const views = built.files["views.sql"]!;
-    expect(views).toContain(
-      "GRANT SELECT ON OBJECT::[bronze].[orders] TO [$(principal_marketing_analysts)];\n",
+    expect(compactSql(views)).toContain(
+      compactSql(
+        "GRANT SELECT ON OBJECT::[bronze].[orders] TO [$(principal_marketing_analysts)];\n",
+      ),
     );
-    expect(views).toContain("GRANT SELECT ON OBJECT::[bronze].[orders] TO [ops]]admins];\n");
+    expect(compactSql(views)).toContain(
+      compactSql("GRANT SELECT ON OBJECT::[bronze].[orders] TO [ops]]admins];\n"),
+    );
     expect(views).toContain(
       "[principals].[name] IN (N'$(principal_marketing_analysts)', N'etl-writers', N'ops]admins'));",
     );

@@ -55,7 +55,14 @@ describe("table checks in checks.sql", () => {
       ") AS [rows] WHERE [id] IS NOT NULL AND [total] IS NOT NULL) AS [distinct_rows];",
     ].join("\n");
   const result = (name: string, variable: string, passes: string) =>
-    `SELECT N'bronze.orders' AS [table], N'${name}' AS [check], N'warn' AS [action], ISNULL(${variable}, 0) AS [failing_rows], CASE WHEN ${passes} THEN 1 ELSE 0 END AS [passed]`;
+    [
+      "SELECT",
+      "  N'bronze.orders' AS [table],",
+      `  N'${name}' AS [check],`,
+      "  N'warn' AS [action],",
+      `  ISNULL(${variable}, 0) AS [failing_rows],`,
+      `  CASE WHEN ${passes} THEN 1 ELSE 0 END AS [passed]`,
+    ].join("\n");
 
   it("counts each over the rows, in one read where it can, and compares by its rule", () => {
     const checks = run({ "standard.yaml": standard("[check]"), "orders.yaml": contract })[
@@ -184,7 +191,7 @@ describe("table checks where drop checks leave rows out", () => {
     expect(beforeDrop).not.toContain("@check_1_3");
     // rowCount compares the rows the view keeps: when drop leaves out every row, it is 0 and fails.
     expect(checks).toContain(
-      "N'orders_rowcount' AS [check], N'warn' AS [action], ISNULL(@check_1_2, 0) AS [failing_rows], CASE WHEN ISNULL(@check_1_2, 0) > 0 THEN 1 ELSE 0 END AS [passed]",
+      "N'orders_rowcount' AS [check],\n  N'warn' AS [action],\n  ISNULL(@check_1_2, 0) AS [failing_rows],\n  CASE WHEN ISNULL(@check_1_2, 0) > 0 THEN 1 ELSE 0 END AS [passed]",
     );
   });
 });

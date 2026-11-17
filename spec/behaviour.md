@@ -990,3 +990,121 @@ from the output folder; in a pipeline's Script activity, with each `$(…)`
 replaced by the environment's value; or as a CI step. It stops nothing unless
 it runs after each landing: a view reads the files each time it is queried,
 and nothing runs `checks.sql` by itself.
+
+# Workspace pipelines and source precision
+
+The `synapse-copy` method copies full Azure SQL Database snapshots through an
+existing Azure integration runtime in the Synapse workspace. This initial route
+supports SQL authentication with a Key Vault password reference; other authentication
+modes are refused rather than omitting their credential resources. It accepts public
+and workspace connectivity only. It produces typed Parquet snapshots for
+`synapse-view`; incremental mode, private connectivity, alternate layouts,
+after-copy jobs and window-boundary audit columns are not supported.
+
+The pack depends on the public ADF pack interface to reuse its SQL Server-family
+Copy resource generation and validation. Only `synapse-copy` tables are adapted;
+other packs' tables are never emitted a second time. Method settings are a
+restricted schema, not a claim that every ADF option works in Synapse.
+
+Single-environment builds write native `dataset`, `linkedService`, `pipeline`
+and `trigger` JSON below `workspace/<environment>/`. Existing runtimes are
+referenced, never generated or reset. The default trigger, the tumbling window
+the ADF pack writes for a pipeline whose flow writes no triggers, becomes a
+schedule trigger with UTC recurrence. It defaults to Stopped and passes no
+tumbling-window expressions. Full pipelines have no required window parameters,
+concurrency one and activity-level retries.
+SQL review companions below `queries/<environment>/<pipeline>/<activity>.sql`
+contain the exact embedded source query with a final semicolon. They are kept
+outside the native workspace artifact folder.
+
+Building environments together retains each environment's workspace files in
+its own directory in one artifact; selecting that directory gives exactly its
+single-environment build. SQL views retain their existing SQLCMD fold. A pipeline
+deploy-time placeholder is refused with DEPLOY_VALUE: this initial workspace
+route requires explicit environment values. Native workspace artifacts are
+not Data Factory ARM templates. Generation never connects to Azure.
+
+When Synapse is the standard's first pack, metadata-derived money columns use
+DECIMAL(19,4), smallmoney columns use DECIMAL(10,4), and captured decimal/numeric
+precision and scale use DECIMAL(p,s), for integer precision 1–38 and scale 0–p.
+Unsupported or malformed observed types use the logical fallback. An explicit
+standard type override wins. Metadata observations never create quality checks
+or non-null promises. For an explicit contract kept by Synapse, physicalType
+takes precedence over logicalType; serving another pack retains its existing
+logical-type mapping.
+
+Generated SQL lists explicit projected columns on separate indented lines and
+puts FROM and WHERE on separate lines. Authored transform SQL is preserved.
+
+# Workspace triggers, parameters and filters
+
+A flow of a `synapse-copy` table may write `triggers` and `parameters` under its
+`ingest`, and a table may write `filter`, as the ADF pack's behaviour describes
+for `adf-copy` (its "Triggers and parameters" section).
+The route reuses that output, so the two behave the same; this section says only
+what the workspace route changes.
+
+The pack's own intent says `operations` is not applicable, since serverless
+views run no jobs. The `synapse-copy` method's intent applies
+`operations.schedule` (both values), `retries` and `timeout`, and says
+`concurrency` is not applicable. The definitions judge a standard's
+`operations` by the entries of the methods a project's tables use, before the
+pack's own (definitions specification, section 11.6). So a standard with
+`schedule: { per: flow }` gets no warning when a flow copies with
+`synapse-copy`, and the pack's reason when none does.
+
+- **The default trigger.** Only the default trigger is converted to a
+  schedule trigger: a `TumblingWindowTrigger` without the annotation
+  `ingestron:flow-trigger`. It keeps its frequency, interval and start, and
+  passes no parameters, so output for a project whose flows write no triggers
+  is unchanged. Its pipeline drops `windowStart` and `windowEnd`, unless a
+  table's filter reads one. The trigger then passes
+  `@trigger().scheduledTime` for each that remains. Parameters a flow declares
+  stay.
+- **A flow's triggers.** Each passes through as the ADF pack writes it, under
+  `workspace/<environment>/trigger/`, with the same names, parameters,
+  annotations and `timeZone` (the Windows name of the zone, such as
+  `GMT Standard Time`). A schedule trigger stays a `ScheduleTrigger`; a
+  tumbling window stays a `TumblingWindowTrigger` with
+  `ingestron:flow-trigger`. The pipeline of a flow that writes triggers keeps
+  the parameters the ADF pack declares, including `windowStart`, `windowEnd`
+  and `load`, since its triggers pass them.
+- **The standard's `operations.triggers`.** The `types` and `hours` the
+  standard allows apply to the default trigger as what it is here, a schedule
+  trigger in UTC with the same frequency, interval and start. A standard that
+  allows only `tumbling-window` refuses it, and a standard that allows only
+  `schedule` does not. The messages are in the form the ADF pack uses for its
+  default trigger, with "a schedule trigger" in place of "a tumbling-window
+  trigger". The checks the ADF pack makes of a flow's triggers, parameters and
+  filters run on these tables too. They refuse a tumbling window that depends
+  on one the workspace does not write (such as a Data Factory flow's, in a
+  project that uses both packs), a flow that copies tables from more than one
+  database, and a query or trigger expression longer than ADF's 8,192
+  characters.
+- **Concurrency.** Every pipeline has concurrency one, a flow's own included, so
+  the standard's `operations.concurrency` is not applicable here: a tumbling
+  window's `maxConcurrency` above one has no effect on a full snapshot, which
+  never overlaps another run.
+- **Full snapshots only.** The route refuses, as a method check of the table, with
+  `<trigger>` the trigger's name and `<table>` the table's:
+  - a trigger whose `parameters` give `load: incremental` as a literal;
+  - a tumbling-window trigger on a table whose load is incremental, which would
+    pass it a window.
+
+  ```text
+  The Synapse workspace route copies full snapshots only; remove `load: incremental` from "<trigger>".
+  The Synapse workspace route copies full snapshots only; the tumbling-window trigger "<trigger>" would pass a window to the incremental table "<table>".
+  ```
+
+  A tumbling window on a full table is allowed; the window is not used.
+
+- **The backfill rule.** The pack's `checkFirstWrites` is the ADF pack's, applied
+  to the files under `workspace/`: a new flow tumbling window that starts in
+  the past is refused, with the same message, unless the trigger writes
+  `backfill: true`.
+- **Filters.** `synapse-copy` filters source rows by a table's `ingest.filter`.
+  A filter written as text appears in the embedded source query and in its
+  `queries/` companion, its closing parenthesis on a line of its own, as the
+  ADF pack writes it. A filter that reads `{{ parameters.<name> }}` makes the
+  source query an expression; its companion then holds the expression text
+  under a comment saying so.

@@ -24,7 +24,7 @@ export function rowsQuery(view: ViewPlan): string {
     .map((column) => `${quote(column)} DESC`)
     .join(", ");
   return [
-    `SELECT ${view.quality!.outputs.map(quote).join(", ")}`,
+    `SELECT\n${view.quality!.outputs.map((name) => `  ${quote(name)}`).join(",\n")}`,
     "FROM (",
     `SELECT *, ROW_NUMBER() OVER (PARTITION BY ${keys} ORDER BY ${order}) AS [_ingestron_row]`,
     "FROM (",
@@ -41,7 +41,7 @@ function transformQuery(query: TransformPlan): string {
   const cleansed = query.cleansed ?? {};
   const select =
     Object.keys(cleansed).length === 0
-      ? `SELECT ${query.columns.map(quote).join(", ")}`
+      ? `SELECT\n${query.columns.map((name) => `  ${quote(name)}`).join(",\n")}`
       : `SELECT\n${query.columns.map((name) => `  ${cleansed[name] === undefined ? quote(name) : `${cleansed[name]} AS ${quote(name)}`}`).join(",\n")}`;
   return [select, "FROM (", code, ") AS [source]"].join("\n");
 }
